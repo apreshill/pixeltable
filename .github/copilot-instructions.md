@@ -67,6 +67,21 @@ Flag any `is None` or `not` in expression contexts.
 - Check: fenced blocks on own lines, paired backticks, self-closing HTML. Notebooks need Raw cell with YAML frontmatter, no H1 headers.
 - Never use double backticks in docstrings. Use single backticks with inline code or triple backticks for fenced blocks.
 
+## Provider Integrations
+
+New integrations live in `pixeltable/functions/<provider>.py`. Full pattern reference: `docs/_guidelines/GUIDELINES_FOR_INTEGRATIONS.md`. Pick a canonical sibling to mirror (multimodal with uploads → `twelvelabs.py`; chat/vision → `openai.py`, `anthropic.py`; generic model runners → `replicate.py`, `fal.py`; image/video generation → `bfl.py`, `reve.py`).
+
+Required patterns. Flag if missing:
+
+- Public UDFs take `pxt.Image` (or `PIL.Image.Image`), `pxt.Video`, `pxt.Audio`, `pxt.Document` directly. Never `file_path: str` in public signatures. Never `.localpath` in user-facing call sites.
+- `@pxt.udf(resource_pool='request-rate:<provider>')` on every external-call UDF.
+- `is_deterministic=False` on generative UDFs (chat, image/video generation, anything LLM-backed). Embedding UDFs that are model-deterministic may omit it.
+- `@env.register_client('<provider>')` at module top; client lookup via `get_runtime().get_client('<provider>')`. `Env` exposes `create_client`, not `get_client`.
+- `Env.get().require_package('<sdk>')` inside each UDF body. SDK added to `Env.__register_packages` in `pixeltable/env.py`.
+- `pxt.ExternalServiceError(pxt.ErrorCode.PROVIDER_ERROR, ..., provider='<provider>')` on upstream failures, not raw SDK exceptions.
+- Module footer: `__all__ = local_public_names(__name__)` and `__dir__`.
+- Notebook examples use `raw.githubusercontent.com` URLs, never local repo paths.
+
 ## Co-Changes (Flag if Missing)
 
 | Changed | Should also change |

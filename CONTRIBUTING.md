@@ -17,6 +17,10 @@ this step-by-step. Here are some guidelines to keep in mind for your first contr
 * Please make an effort to ensure that your code and documentation conventions are consistent with those used elsewhere
     in the Pixeltable codebase. (For example, if you are contributing a new integration in the pixeltable.functions
     package, take some time to familiarize yourself with a few related modules in that package.)
+    * **For new integrations specifically**, see
+      [`docs/_guidelines/GUIDELINES_FOR_INTEGRATIONS.md`](docs/_guidelines/GUIDELINES_FOR_INTEGRATIONS.md). It names the
+      canonical reference files to mirror and covers the patterns (column-type inputs, async clients, rate-limit pools,
+      file upload helpers, error handling) that integration PRs are reviewed against.
 * Pixeltable adheres to rigorous coding and engineering standards. If you submit a PR, expect to see a healthy amount
     of commentary. We strive to ensure that every change or new feature is adequately tested, so it's advisable to
     include unit tests in the `tests` package alongside any code changes in the `pixeltable` package.
