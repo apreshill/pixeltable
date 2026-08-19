@@ -1,11 +1,15 @@
 ---
-title: 'Ecosystem'
-description: 'Built-in AI provider integrations as computed columns'
+title: 'Model catalog'
+description: 'Browse every built-in model integration, grouped by task: chat, embeddings, media generation, vision, and audio.'
 ---
 
-Providers are functions on a `TableModel`. Apply with `pxt schema update`. Notebooks can still `add_computed_column()`. API keys and extras are on each provider page.
+Pixeltable connects to the entire model ecosystem, but the canonical install packages, API-key
+credentials, and per-function capabilities live in the tables on the [Integrations
+overview](/integrations) page. This page is a quick browse by task. Each card links to a guide;
+for named open models that ship their own UDFs (SAM 3, CLIP, DETR, ViT, Whisper, …) see
+[Open models](/integrations/open-models).
 
-Missing one? A [`@pxt.udf`](/platform/udfs-in-pixeltable), or [GitHub Discussions](https://github.com/pixeltable/pixeltable/discussions).
+Providers are functions on a `TableModel`. Apply with `pxt schema update`. Notebooks can still `add_computed_column()`. API keys and extras are on each provider page.
 
 ```python
 from __future__ import annotations
@@ -24,7 +28,13 @@ class Articles(TableModel, name='articles'):
     )
 ```
 
-## Cloud LLM providers
+<Note>
+Missing an integration? Build your own with Pixeltable [UDFs](/platform/udfs-in-pixeltable), or suggest one on [GitHub Discussions](https://github.com/pixeltable/pixeltable/discussions).
+</Note>
+
+## Chat
+
+Generate and reason with text via hosted or local LLMs.
 
 <CardGroup cols={3}>
   <Card
@@ -32,7 +42,7 @@ class Articles(TableModel, name='articles'):
     icon="brain"
     href="/howto/providers/working-with-anthropic"
   >
-    Claude models for language and multimodal generation
+    Claude models for advanced language understanding and generation with tool calling
   </Card>
 
   <Card
@@ -40,7 +50,7 @@ class Articles(TableModel, name='articles'):
     icon="sparkles"
     href="/howto/providers/working-with-gemini"
   >
-    Gemini via Google AI Studio or Vertex AI
+    Gemini via Google AI Studio or Vertex AI for multimodal chat
   </Card>
 
   <Card
@@ -48,7 +58,7 @@ class Articles(TableModel, name='articles'):
     icon="square-code"
     href="/howto/providers/working-with-openai"
   >
-    GPT models for text, embeddings, and image analysis
+    GPT models for text generation, embeddings, and image analysis
   </Card>
 
   <Card
@@ -56,7 +66,7 @@ class Articles(TableModel, name='articles'):
     icon="microsoft"
     href="/howto/providers/working-with-openai"
   >
-    OpenAI models via Azure
+    OpenAI models via Azure with enterprise security and compliance
   </Card>
 
   <Card
@@ -64,7 +74,7 @@ class Articles(TableModel, name='articles'):
     icon="wind"
     href="/howto/providers/working-with-mistralai"
   >
-    Mistral language models
+    Efficient language models for chat and NLP tasks
   </Card>
 
   <Card
@@ -72,7 +82,7 @@ class Articles(TableModel, name='articles'):
     icon="robot"
     href="/howto/providers/working-with-deepseek"
   >
-    DeepSeek language and code models
+    Language and code models for generation and reasoning
   </Card>
 
   <Card
@@ -80,7 +90,15 @@ class Articles(TableModel, name='articles'):
     icon="microchip"
     href="/howto/providers/working-with-groq"
   >
-    Groq-hosted models
+    Fast hosted inference for chat and tool calling
+  </Card>
+
+  <Card
+    title="Microsoft Fabric"
+    icon="microsoft"
+    href="/howto/providers/working-with-fabric"
+  >
+    Azure OpenAI chat and embeddings inside Microsoft Fabric
   </Card>
 </CardGroup>
 
@@ -94,7 +112,7 @@ Platforms that host or route many models from a shared catalog.
     icon="face-smile"
     href="/howto/providers/working-with-hugging-face"
   >
-    CLIP, DETR, sentence-transformers, ViT, Speech2Text, and more
+    Thousands of pre-trained models across text, vision, and audio
   </Card>
 
   <Card
@@ -102,7 +120,7 @@ Platforms that host or route many models from a shared catalog.
     icon="clone"
     href="/howto/providers/working-with-replicate"
   >
-    Run models on Replicate
+    Deploy and run any model through Replicate's cloud infrastructure
   </Card>
 
   <Card
@@ -110,15 +128,15 @@ Platforms that host or route many models from a shared catalog.
     icon="users"
     href="/howto/providers/working-with-together"
   >
-    Open-source models via Together
+    Open-source models through Together AI's platform
   </Card>
 
   <Card
-    title="Fireworks"
+    title="Fireworks AI"
     icon="rocket"
     href="/howto/providers/working-with-fireworks"
   >
-    Fireworks inference
+    Optimized model inference infrastructure
   </Card>
 
   <Card
@@ -126,7 +144,7 @@ Platforms that host or route many models from a shared catalog.
     icon="route"
     href="/howto/providers/working-with-openrouter"
   >
-    One API across many LLM providers
+    Unified access to 100+ LLMs through a single API
   </Card>
 
   <Card
@@ -134,7 +152,7 @@ Platforms that host or route many models from a shared catalog.
     icon="aws"
     href="/howto/providers/working-with-bedrock"
   >
-    Models through Bedrock
+    A variety of AI models through AWS Bedrock's unified API
   </Card>
 
   <Card
@@ -142,11 +160,16 @@ Platforms that host or route many models from a shared catalog.
     icon="cloud"
     href="/howto/providers/working-with-nebius"
   >
-    Nebius Token Factory via an OpenAI-compatible API
+    Token Factory language and embedding models via an OpenAI-compatible API
   </Card>
 </CardGroup>
 
-## Embeddings and reranking
+## Embeddings & reranking
+
+<Note>
+Capability details and the full function list are in the [Integrations overview](/integrations)
+matrix. These cards link to the per-provider guides.
+</Note>
 
 <CardGroup cols={3}>
   <Card
@@ -170,11 +193,13 @@ Platforms that host or route many models from a shared catalog.
     icon="clapperboard"
     href="/howto/providers/working-with-twelvelabs"
   >
-    Multimodal embeddings via the TwelveLabs Embed API
+    Multimodal embeddings for text, image, audio, and video
   </Card>
 </CardGroup>
 
 ## Media generation
+
+Create and edit images and video with diffusion and generative models.
 
 <CardGroup cols={3}>
   <Card
@@ -182,7 +207,7 @@ Platforms that host or route many models from a shared catalog.
     icon="image"
     href="/howto/providers/working-with-bfl"
   >
-    FLUX image generation and editing from Black Forest Labs
+    Image generation, editing, fill, and expansion with FLUX models
   </Card>
 
   <Card
@@ -190,7 +215,7 @@ Platforms that host or route many models from a shared catalog.
     icon="wand-magic-sparkles"
     href="/howto/providers/working-with-fal"
   >
-    Flux, Stable Diffusion, and other image models
+    Fast image generation with Flux, Stable Diffusion, and other models
   </Card>
 
   <Card
@@ -202,35 +227,9 @@ Platforms that host or route many models from a shared catalog.
   </Card>
 </CardGroup>
 
-## Local LLM runtimes
+## Vision
 
-<CardGroup cols={3}>
-  <Card
-    title="Llama.cpp"
-    icon="microchip"
-    href="/howto/providers/working-with-llama-cpp"
-  >
-    Local LLMs on CPU and GPU
-  </Card>
-
-  <Card
-    title="Ollama"
-    icon="box"
-    href="/howto/providers/working-with-ollama"
-  >
-    Local open-source models via Ollama
-  </Card>
-
-  <Card
-    title="vLLM"
-    icon="microchip"
-    href="/howto/providers/working-with-vllm"
-  >
-    High-throughput local inference
-  </Card>
-</CardGroup>
-
-## Computer vision
+Detect objects and classify images and video frames.
 
 <CardGroup cols={2}>
   <Card
@@ -238,7 +237,7 @@ Platforms that host or route many models from a shared catalog.
     icon="camera"
     href="/howto/use-cases/object-detection-in-videos"
   >
-    Object detection with YOLOX
+    Object detection on images and video frames
   </Card>
 
   <Card
@@ -246,38 +245,57 @@ Platforms that host or route many models from a shared catalog.
     icon="cube"
     href="/howto/working-with-fiftyone"
   >
-    Image and video datasets with FiftyOne
+    Visualize images and labels, and export datasets
   </Card>
 </CardGroup>
 
+For CLIP, DETR, and ViT vision models that run as named functions, see
+[Open models](/integrations/open-models).
+
 ## Audio
+
+Transcribe speech to text, and translate across languages.
 
 <Card
   title="Whisper / WhisperX"
   icon="waveform"
   href="/howto/use-cases/audio-transcriptions"
 >
-  Speech recognition with Whisper
+  Speech recognition and transcription using OpenAI's Whisper models
 </Card>
 
-## Enterprise
+For the `speech2text` udf that runs Whisper locally, see
+[Open models](/integrations/open-models).
 
-<Card
-  title="Microsoft Fabric"
-  icon="microsoft"
-  href="/howto/providers/working-with-fabric"
->
-  Azure OpenAI through Microsoft Fabric
-</Card>
+## Local runtimes
 
-## DataFrames
+Run models on your own hardware with no API key.
 
-<Card
-  title="Pandas"
-  icon="table"
-  href="/tutorials/tables-and-data-operations"
->
-  Import and export pandas DataFrames — not a working store
-</Card>
+<CardGroup cols={3}>
+  <Card
+    title="Llama.cpp"
+    icon="microchip"
+    href="/howto/providers/working-with-llama-cpp"
+  >
+    Run LLMs on CPU and GPU with GGUF models
+  </Card>
 
-Provider notebooks: [docs/release/howto/providers](https://github.com/pixeltable/pixeltable/tree/main/docs/release/howto/providers).
+  <Card
+    title="Ollama"
+    icon="box"
+    href="/howto/providers/working-with-ollama"
+  >
+    Run and manage open-source models locally
+  </Card>
+
+  <Card
+    title="vLLM"
+    icon="microchip"
+    href="/howto/providers/working-with-vllm"
+  >
+    High-throughput GPU inference with PagedAttention
+  </Card>
+</CardGroup>
+
+Hugging Face also loads named models such as SAM 3 and CLIP. See
+[Open models](/integrations/open-models) for the full list of open-model functions.

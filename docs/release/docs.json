@@ -311,52 +311,74 @@
         "tab": "Integrations",
         "groups": [
           {
-            "group": "Built-in Integrations",
+            "group": "Overview",
             "pages": [
-              "integrations/frameworks"
+              "integrations"
             ]
           },
           {
-            "group": "Infrastructure",
+            "group": "Models",
             "pages": [
-              "integrations/cloud-storage"
+              "integrations/frameworks",
+              "integrations/embedding-model",
+              {
+                "group": "Hosted providers",
+                "pages": [
+                  "howto/providers/working-with-anthropic",
+                  "howto/providers/working-with-bedrock",
+                  "howto/providers/working-with-bfl",
+                  "howto/providers/working-with-deepseek",
+                  "howto/providers/working-with-fabric",
+                  "howto/providers/working-with-fal",
+                  "howto/providers/working-with-fireworks",
+                  "howto/providers/working-with-gemini",
+                  "howto/providers/working-with-groq",
+                  "howto/providers/working-with-jina",
+                  "howto/providers/working-with-mistralai",
+                  "howto/providers/working-with-nebius",
+                  "howto/providers/working-with-openai",
+                  "howto/providers/working-with-openrouter",
+                  "howto/providers/working-with-replicate",
+                  "howto/providers/working-with-runwayml",
+                  "howto/providers/working-with-together",
+                  "howto/providers/working-with-twelvelabs",
+                  "howto/providers/working-with-voyageai"
+                ]
+              },
+              {
+                "group": "Local runtimes",
+                "pages": [
+                  "howto/providers/working-with-hugging-face",
+                  "howto/providers/working-with-llama-cpp",
+                  "howto/providers/working-with-ollama",
+                  "howto/providers/working-with-vllm"
+                ]
+              },
+              {
+                "group": "Open models",
+                "pages": [
+                  "integrations/open-models",
+                  "libraries/yolox"
+                ]
+              }
             ]
           },
           {
-            "group": "Bring Your Own",
+            "group": "Data",
             "pages": [
-              "integrations/embedding-model"
-            ]
-          },
-          {
-            "group": "Providers",
-            "pages": [
-              "howto/providers/working-with-anthropic",
-              "howto/providers/working-with-bedrock",
-              "howto/providers/working-with-bfl",
-              "howto/providers/working-with-deepseek",
-              "howto/providers/working-with-fal",
-              "howto/providers/working-with-fabric",
-              "howto/providers/working-with-fireworks",
-              "howto/providers/working-with-gemini",
-              "howto/providers/working-with-groq",
-              "howto/providers/working-with-hugging-face",
-              "howto/providers/working-with-jina",
-              "howto/providers/working-with-llama-cpp",
-              "howto/providers/working-with-mistralai",
-              "howto/providers/working-with-nebius",
-              "howto/providers/working-with-ollama",
-              "howto/providers/working-with-openai",
-              "howto/providers/working-with-openrouter",
-              "howto/providers/working-with-pydantic",
-              "howto/providers/working-with-replicate",
-              "howto/providers/working-with-runwayml",
+              "integrations/cloud-storage",
+              "integrations/import-export",
               "howto/providers/working-with-tigris",
-              "howto/providers/working-with-together",
-              "howto/providers/working-with-twelvelabs",
-              "howto/providers/working-with-vllm",
-              "howto/providers/working-with-voyageai",
-              "howto/working-with-fiftyone"
+              "howto/working-with-fiftyone",
+              "howto/providers/working-with-pydantic"
+            ]
+          },
+          {
+            "group": "Serving & ops",
+            "pages": [
+              "howto/deployment/serving",
+              "libraries/mcp",
+              "platform/observability"
             ]
           }
         ]

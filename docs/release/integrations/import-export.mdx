@@ -1,0 +1,90 @@
+---
+title: "Import & export"
+description: "How to import data into Pixeltable and export it back out."
+---
+
+Import creates a table from an external source. Export writes a table or a query result to a file
+or another system. You call all of these functions as `pxt.io.<name>`.
+
+## What is supported
+
+| Source or target | Import | Export |
+| :--- | :--- | :--- |
+| CSV | `import_csv` | `export_csv` |
+| JSON | `import_json` | `export_json` |
+| Parquet | `import_parquet` | `export_parquet` |
+| pandas | `import_pandas` | |
+| Excel | `import_excel` | |
+| Python rows | `import_rows` | |
+| SQL databases | `import_sql` | `export_sql` |
+| Hugging Face datasets | `import_huggingface_dataset` | |
+| Apache Iceberg | | `export_iceberg` |
+| LanceDB | | `export_lancedb` |
+| FiftyOne | | `export_images_as_fo_dataset` |
+
+## Import
+
+Each import function creates a new table and works out the column types from the source. To set a
+column type yourself, pass `schema_overrides`. To choose the key columns, pass `primary_key`.
+
+```python
+import pixeltable as pxt
+
+t = pxt.io.import_csv('my_dir.reviews', 'reviews.csv', primary_key='review_id')
+```
+
+Importing a pandas DataFrame or an Excel workbook follows the same shape:
+
+```python
+t = pxt.io.import_pandas('my_dir.sales', df)
+t = pxt.io.import_excel('my_dir.inventory', 'inventory.xlsx')
+```
+
+For Hugging Face, pass a `datasets.Dataset` or `DatasetDict`:
+
+```python
+import datasets
+
+ds = datasets.load_dataset('cifar10', split='train')
+t = pxt.io.import_huggingface_dataset('my_dir.cifar', ds)
+```
+
+`import_sql` takes a SQLAlchemy selectable and a connection, so it works with any database
+SQLAlchemy supports, e.g., Postgres.
+
+## Export
+
+Export accepts a table or a query. If you pass a query, Pixeltable writes only the rows that query
+returns, so you can filter the data before you write it.
+
+```python
+pxt.io.export_parquet(t.where(t.score > 0.9).select(t.id, t.text), 'high_scoring.parquet')
+```
+
+Writing to Iceberg takes a `pyiceberg` catalog:
+
+```python
+pxt.io.export_iceberg(t, catalog, 'analytics.reviews')
+```
+
+Writing to LanceDB takes a database URI and a table name:
+
+```python
+pxt.io.export_lancedb(t, 'data/lance', 'reviews')
+```
+
+`export_images_as_fo_dataset` builds a FiftyOne dataset from an image column so you can look at
+the images. You can also pass classification or detection columns. See
+[Voxel51](/howto/working-with-fiftyone) for an example.
+
+## Computed columns are exported too
+
+An export writes whatever the query selects, and that includes computed columns. If a computed
+column produced an embedding or a caption, the export writes that value like any other column.
+
+## Related resources
+
+* [Cloud storage](/integrations/cloud-storage): reference media in S3, GCS, Azure, R2, B2, and Tigris
+* [Voxel51](/howto/working-with-fiftyone): visualize images and labels in FiftyOne
+* [Pydantic](/howto/providers/working-with-pydantic): declare schemas and ingest validated rows
+* [Integrations](/integrations): every provider, runtime, and data system in one table

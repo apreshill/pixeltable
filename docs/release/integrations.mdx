@@ -1,0 +1,234 @@
+---
+title: "Integrations"
+description: "See what Pixeltable connects to and how to set each one up."
+---
+
+## How is running models different in Pixeltable?
+
+You call a model by adding a computed column, whether it's a hosted provider, a local runtime,
+or your own UDF. What changes versus calling a provider's API directly:
+
+| Without Pixeltable | In Pixeltable |
+| :--- | :--- |
+| Install and maintain a different SDK per vendor | Call any model with one function signature |
+| Convert and upload each media type by hand | Media is sent in whatever format the API expects |
+| Write retry and backoff logic per call | Calls are retried automatically with exponential backoff |
+| Track and pace requests to stay under rate limits | Set a limit; Pixeltable paces concurrency for you |
+| Batch and parallelize calls yourself | Calls run concurrently up to your configured limit |
+| Cache results so you do not pay twice | Only new rows are computed; results are cached |
+| Log which call produced which value | Lineage is recorded for every value |
+
+```python
+import pixeltable as pxt
+from pixeltable.functions import openai
+
+# Any model is called the same way: as a computed column on a table.
+t = pxt.create_table('qa', {'prompt': pxt.String})
+t.add_computed_column(
+    answer=openai.chat_completions(
+        messages=[{'role': 'user', 'content': t.prompt}],
+        model='gpt-4o',
+    )
+)
+```
+
+## Which hosted providers can I call?
+
+Access state-of-the-art managed models without running any infrastructure. Hosted providers need
+an API key and a vendor account; the table lists each credential. See
+[Configuration](/platform/configuration) for where to get each key and how to store it in your
+environment or in `~/.pixeltable/config.toml`. For the same providers grouped by task instead
+of by vendor, see the [Model catalog](/integrations/frameworks).
+
+| Provider | What you can do with it | Install | Credential |
+| :--- | :--- | :--- | :--- |
+| [Anthropic](/howto/providers/working-with-anthropic) | Chat, tool calling | `anthropic` | `ANTHROPIC_API_KEY` |
+| [AWS Bedrock](/howto/providers/working-with-bedrock) | Chat, embeddings, tool calling | `boto3` | `BEDROCK_API_KEY` |
+| [BFL (FLUX)](/howto/providers/working-with-bfl) | Image generation and editing | built in | `BFL_API_KEY` |
+| [DeepSeek](/howto/providers/working-with-deepseek) | Chat, code | built in | `DEEPSEEK_API_KEY` |
+| [Microsoft Fabric](/howto/providers/working-with-fabric) | Chat, embeddings | built in | Fabric workspace auth |
+| [fal.ai](/howto/providers/working-with-fal) | Any model it hosts, through `run()` | `fal-client` | `FAL_API_KEY` |
+| [Fireworks AI](/howto/providers/working-with-fireworks) | Chat | `fireworks-ai` | `FIREWORKS_API_KEY` |
+| [Google Gemini](/howto/providers/working-with-gemini) | Chat, embeddings, image, video, speech, transcription, tool calling | `google-genai` | `GEMINI_API_KEY` |
+| [Groq](/howto/providers/working-with-groq) | Chat, tool calling | `groq` | `GROQ_API_KEY` |
+| [Jina AI](/howto/providers/working-with-jina) | Embeddings, reranking | built in | `JINA_API_KEY` |
+| [Mistral AI](/howto/providers/working-with-mistralai) | Chat, embeddings | `mistralai` | `MISTRAL_API_KEY` |
+| [Nebius](/howto/providers/working-with-nebius) | Chat, embeddings | built in | `NEBIUS_API_KEY` |
+| [OpenAI](/howto/providers/working-with-openai) | Chat, embeddings, image, speech, transcription, tool calling | `openai` | `OPENAI_API_KEY` |
+| [OpenRouter](/howto/providers/working-with-openrouter) | Chat | `openai` | `OPENROUTER_API_KEY` |
+| [Replicate](/howto/providers/working-with-replicate) | Any model it hosts, through `run()` | `replicate` | `REPLICATE_API_TOKEN` |
+| [RunwayML](/howto/providers/working-with-runwayml) | Image and video generation | `runwayml` | `RUNWAYML_API_SECRET` |
+| [Together AI](/howto/providers/working-with-together) | Chat, embeddings, image generation | `together` | `TOGETHER_API_KEY` |
+| [Twelve Labs](/howto/providers/working-with-twelvelabs) | Embeddings for text, image, video, and audio | `twelvelabs` | `TWELVELABS_API_KEY` |
+| [Voyage AI](/howto/providers/working-with-voyageai) | Embeddings, reranking | `voyageai` | `VOYAGE_API_KEY` |
+
+Providers marked "built in" need no extra package. A credential is derived from the client
+registration in code, so it is not always the vendor name: `mistralai.py` registers the client as
+`mistral`, so the variable is `MISTRAL_API_KEY`; Replicate uses `REPLICATE_API_TOKEN` and RunwayML
+uses `RUNWAYML_API_SECRET`.
+
+```python
+from pixeltable.functions import openai  # add a second column to try another provider
+
+t.add_computed_column(
+    answer=openai.chat_completions(
+        messages=[{'role': 'user', 'content': t.prompt}],
+        model='gpt-4o',
+    )
+)
+```
+
+> You don't swap a provider in place. Add a second computed column for the other provider, e.g.
+> `answer_claude = anthropic.chat_completions(...)`, then query or similarity-search the column
+> you prefer. Set that provider's credential in the table above.
+
+## How do I run models on my own hardware?
+
+Run models on your own hardware to avoid per-call costs, keep data off the network, and use
+models that never leave your environment. These need no API key; a runtime runs whatever model you
+point it at.
+
+| Runtime | What you can do with it | Install |
+| :--- | :--- | :--- |
+| [Hugging Face](/howto/providers/working-with-hugging-face) | Chat, embeddings, vision, audio, segmentation | `transformers` |
+| [llama.cpp](/howto/providers/working-with-llama-cpp) | Chat with GGUF models on CPU or GPU | `llama-cpp-python` |
+| [Ollama](/howto/providers/working-with-ollama) | Chat, embeddings | `ollama` |
+| [vLLM](/howto/providers/working-with-vllm) | Chat on a GPU | `vllm` |
+
+Hugging Face also loads named models such as SAM 3 and CLIP. See
+[Open models](/integrations/open-models). To reach an Ollama server that is not on the default
+host, set `OLLAMA_HOST`.
+
+```python
+from pixeltable.functions import ollama  # add a second column to try another runtime
+
+t.add_computed_column(
+    answer=ollama.chat(
+        messages=[{'role': 'user', 'content': t.prompt}],
+        model='llama3',
+    )
+)
+```
+
+> Add a second computed column for another runtime, e.g.
+> `answer_llama = llama_cpp.create_chat_completion(...)`. Named open models (SAM 3, CLIP, DETR,
+> ViT, Whisper) are listed on [Open models](/integrations/open-models).
+
+## How do I build an embedding index?
+
+Pixeltable automatically and incrementally maintains your embedding index: inserting or updating a
+row computes only the new embedding and updates the index, so you never reindex the whole table by
+hand. Build an index over a text, image, video, audio, or document column with one of the functions
+below. See [Embeddings](/integrations/embedding-model) for `.using()` and custom models.
+
+| Function | Modality | Runs |
+| :--- | :--- | :--- |
+| `openai.embeddings` | text | hosted |
+| `gemini.embed_content` | text | hosted |
+| `bedrock.embed` | text, image | hosted |
+| `together.embeddings` | text | hosted |
+| `mistralai.embeddings` | text | hosted |
+| `nebius.embeddings` | text | hosted |
+| `fabric.embeddings` | text | hosted |
+| `jina.embeddings` | text | hosted |
+| `voyageai.embeddings` | text | hosted |
+| `voyageai.multimodal_embed` | text, image | hosted |
+| `twelvelabs.embed` | text, image, video, audio | hosted |
+| `ollama.embed` | text | local |
+| `huggingface.sentence_transformer` | text | local |
+| `huggingface.clip` | text, image | local |
+
+For reranking, use `jina.rerank`, `voyageai.rerank`, or `huggingface.cross_encoder`.
+
+```python
+import pixeltable as pxt
+from pixeltable.functions import openai
+
+t = pxt.create_table('docs', {'text': pxt.String})
+t.add_embedding_index('text', embedding=openai.embeddings())
+```
+
+> You don't swap a model in place. To compare providers, add a new embedding column and index for
+> another function — `mistralai.embeddings`, `jina.embeddings`, `voyageai.embeddings`,
+> `nebius.embeddings` (hosted) or `huggingface.sentence_transformer` / `huggingface.clip` (local)
+> — then similarity-search the index you prefer.
+
+## How do I serve Pixeltable in my app?
+
+The same FastAPI process that computes your columns also exposes them as endpoints, so you ship a
+table or query as an HTTP API without moving it anywhere else. This is the keystone for getting
+Pixeltable into your application; MCP and OpenTelemetry extend this process.
+
+| Integration | What it does | Install |
+| :--- | :--- | :--- |
+| [HTTP serving](/howto/deployment/serving) | Expose tables and queries as HTTP endpoints via `FastAPIRouter`, configured in Python or a TOML service file | `pixeltable[serve]` |
+| [MCP](/libraries/mcp) | Turn remote MCP tools into udfs with `pxt.mcp_udfs()`, and serve Pixeltable over MCP | `mcp` |
+| [Observability](/platform/observability) | Export internal spans to any OpenTelemetry backend | `pixeltable[otel]` |
+
+```python
+import fastapi
+from pixeltable.serving import FastAPIRouter
+
+app = fastapi.FastAPI()
+router = FastAPIRouter()
+# router.add_insert_route(t, '/insert', inputs=['prompt'], outputs=['prompt', 'result'])
+# router.add_update_route(t, '/update', inputs=['prompt'], outputs=['id', 'prompt', 'result'])
+# router.add_query_route(my_query, '/search')
+app.include_router(router)   # also configurable via pyproject.toml / a TOML service file
+```
+
+> HTTP serving covers insert/update/preview/query endpoints and background compute; MCP and
+> OpenTelemetry extend the same FastAPI process. Full reference and the TOML service-file form
+> at [/howto/deployment/serving](/howto/deployment/serving).
+
+## What data can I move to and from?
+
+Bring your own data and your own destination. Pixeltable reads and writes your files in place —
+no copy into a proprietary store — and keeps a local cache so a file is fetched only once.
+
+| Integration | What it does |
+| :--- | :--- |
+| [Cloud storage](/integrations/cloud-storage) | Read and write media in S3, GCS, Azure Blob, Cloudflare R2, Backblaze B2, and Tigris |
+| [Import & export](/integrations/import-export) | Move tables in and out as CSV, JSON, Parquet, pandas, Excel, SQL, Hugging Face datasets, Iceberg, and LanceDB |
+
+```python
+import pixeltable as pxt
+
+# Import creates a table from any supported source.
+t = pxt.io.import_csv('my_dir.reviews', 'reviews.csv', primary_key='review_id')
+
+# Export writes a table or a query result — computed columns included.
+pxt.io.export_parquet(t.where(t.score > 0.9).select(t.id, t.text), 'high_scoring.parquet')
+```
+
+Three of these have their own page as well.
+[Tigris](/howto/providers/working-with-tigris) is one of the object stores covered on the cloud
+storage page. [Voxel51](/howto/working-with-fiftyone) is an export target, so you can look at
+images and labels after a run. [Pydantic](/howto/providers/working-with-pydantic) is how you
+declare a schema and insert rows that have been validated.
+
+Pixeltable does not copy your media into its own store. It reads a file from cloud storage when a
+computation needs the bytes, keeps a local copy so it does not download the file twice, and writes
+generated media back to the store you configure.
+
+## Related resources
+
+### Models
+
+* [Model catalog](/integrations/frameworks): every built-in model integration, grouped by task
+* [Embeddings](/integrations/embedding-model): embedding indexes, `.using()`, and custom models
+* [Open models](/integrations/open-models): SAM 3, CLIP, Whisper, DETR, ViT, and other named models with dedicated udfs
+* [YOLOX](/libraries/yolox): lightweight object detection built on PyTorch
+
+### Data
+
+* [Cloud storage](/integrations/cloud-storage): configure S3, GCS, Azure, R2, B2, and Tigris
+* [Import & export](/integrations/import-export): move data in and out of Pixeltable
+* [Voxel51](/howto/working-with-fiftyone): visualize images and labels in FiftyOne
+* [Pydantic](/howto/providers/working-with-pydantic): schema declaration and validated ingest
+
+### Serving and ops
+
+* [HTTP serving](/howto/deployment/serving): FastAPI endpoints for tables, queries, and background jobs
+* [MCP](/libraries/mcp): consume MCP tools and serve Pixeltable over MCP
+* [Observability](/platform/observability): OpenTelemetry spans for inserts and computed columns

@@ -1,0 +1,62 @@
+---
+title: "Open models"
+description: "Call open models like SAM 3 and CLIP as computed columns, with no API key."
+---
+
+You can call these models directly. They do not need an API key or a vendor account. Most of them
+download from Hugging Face, which distributes them but did not build them. The Origin column below
+names the lab that did.
+
+| Model | udf | Package |
+| :--- | :--- | :--- |
+| SAM 3 | `huggingface.sam3_for_segmentation`, `huggingface.sam_automatic_mask_generation`, `huggingface.sam3_for_video_segmentation` | `transformers` |
+| CLIP | `huggingface.clip` | `transformers` |
+| Sentence transformers | `huggingface.sentence_transformer` | `sentence-transformers` |
+| Cross-encoders | `huggingface.cross_encoder` | `sentence-transformers` |
+| DETR | `huggingface.detr_for_object_detection`, `huggingface.detr_for_segmentation` | `transformers` |
+| ViT | `huggingface.vit_for_image_classification` | `transformers` |
+| Speech2Text | `huggingface.speech2text_for_conditional_generation` | `transformers` |
+| Whisper | `whisper.transcribe` | `openai-whisper` |
+| WhisperX | `whisperx.transcribe` | `whisperx` |
+| [YOLOX](/libraries/yolox) | `yolox.yolox`, `yolox.yolo_to_coco` | `pixeltable-yolox` |
+
+Meta built SAM 3 and DETR. OpenAI built CLIP and Whisper. Google built ViT.
+
+SAM 3 is the only model with a default id, which is `facebook/sam3`. For every other model you
+pass `model_id` yourself.
+
+## SAM 3
+
+SAM 3 segments an image from a prompt. You pass either a text prompt or bounding boxes, and it
+returns masks.
+
+```python
+tbl.add_computed_column(seg=sam3_for_segmentation(tbl.image, text='cat'))
+```
+
+`sam3_for_video_segmentation` is an iterator, not a udf. You use it to build a view, and it
+produces one row for each tracked frame.
+
+<Note>
+`facebook/sam3` is a gated repository. Request access on its
+[model page](https://huggingface.co/facebook/sam3), then authenticate with a Hugging Face token
+before the first call.
+</Note>
+
+For examples, see
+[Promptable segmentation](/howto/cookbooks/images/img-promptable-segmentation) and
+[Detection vs. segmentation](/howto/cookbooks/images/img-detection-vs-segmentation).
+
+## Embedding models
+
+`huggingface.sentence_transformer` embeds text. `huggingface.clip` embeds text and images into the
+same space, so you can search a set of photos by typing a description. Use
+`huggingface.cross_encoder` to reorder results after a search. See
+[Embeddings](/integrations/embedding-model) for how to build an index.
+
+## Related resources
+
+* [Embeddings](/integrations/embedding-model): build a search index over your data
+* [Hugging Face](/howto/providers/working-with-hugging-face): the runtime these models load through
+* [YOLOX](/libraries/yolox): object detection with its own package
+* [Integrations](/integrations): every provider, runtime, and data system in one table
