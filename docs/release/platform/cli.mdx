@@ -540,6 +540,7 @@ pxt service update app.py my_dir
 | `pxt service prune APP TARGET` | Stop and forget the services at `TARGET` that `APP` does not declare |
 | `pxt service stop NAME...` | Stop the named services |
 | `pxt service list [TARGET]` | What is running, and where |
+| `pxt service check APP` | Validate the application file on its own. Takes no `TARGET` and reads no catalog |
 | `pxt service example` | Write a working application file to start from |
 
 Like the `schema` verbs, `diff` reports drift in its exit status: `0` in agreement, `2` changes pending,
@@ -554,6 +555,7 @@ Like the `schema` verbs, `diff` reports drift in its exit status: `0` in agreeme
 | `-n`, `--dry-run` | `update`, `prune` | Print the intended change; don't apply it |
 | `--allow-destructive` | `update` | Permit changes that stop serving a route callers may be using |
 | `--host`, `--port` | `run` | Bind address and port (default `127.0.0.1:8000`) |
+| `--otel` | `diff`, `update`, `run` | Emit OpenTelemetry traces (`update`/`run`) or report tracing that is off (`diff`). Needs `pixeltable[otel]` |
 
 ### Background and foreground
 
