@@ -1,94 +1,65 @@
 ---
 title: 'Starter kit'
-description: 'uvx pixeltable-new writes an application file. pxt schema update applies it. pxt service update serves it.'
+description: 'uvx pixeltable-new copies a starter app. pxt schema update creates its tables. pxt service update starts the endpoints.'
 ---
 
-The [Pixeltable Starter Kit](https://github.com/pixeltable/pixeltable-starter-kit) is `serving/`
-(default) and `batch/` (no HTTP). `uvx pixeltable-new` copies one into a new directory.
+The [Pixeltable Starter Kit](https://github.com/pixeltable/pixeltable-starter-kit) is two apps.
+`uvx pixeltable-new` copies one into a new directory.
 
-Other apps (RAG, video, agents, a UI) are written into the same `app.py` by an agent
-with the [Pixeltable skill](/resources/ai-skills). Video frames + CLIP and an agent-as-table
-live in starter-kit `examples/` (same apply path; not copied by `uvx`). Cloud reads
-[`gallery.json`](https://github.com/pixeltable/pixeltable-starter-kit/blob/main/gallery.json).
-
-A first run: [Quickstart](/overview/quick-start). Verbs:
-[How it works](/overview/how-it-works).
+First create the tables (`pxt schema update`), then start the endpoints (`pxt service update`), then try the app by inserting rows, calling `/ask`, or opening the dashboard.
+A first run: [Quickstart](/overview/quick-start).
 
 ```bash
 uvx pixeltable-new myapp
 cd myapp
 uv sync
-pxt schema update app.py pipeline
-pxt service update app.py pipeline
+pxt schema update app.py agent
+pxt service update app.py agent
 ```
 
-`pipeline` is a catalog directory, not a folder on disk. The scaffold includes
-`pixeltable.toml`. If you copied files by hand, run `pxt init` first.
+`agent` is the catalog Pixeltable creates, not a folder on disk. For the video app, run `uvx pixeltable-new myapp --video` and use `videointel` as that catalog.
+The scaffold includes `pixeltable.toml`. If you copied files by hand, run `pxt init` first.
 
 Routes live on a `FastAPIRouter` in the same file as the `TableModel` classes.
-[HTTP serving](/howto/deployment/serving).
+If you already have a FastAPI app, mount the kit's router with `app.include_router(...)`. [HTTP serving](/howto/deployment/serving).
+To skip endpoints, see [Self-hosting](/howto/deployment/overview) for the insert-and-export path.
 
-## Patterns
+## Apps
 
 <Columns cols={2}>
-  <Card title="Serving" icon="globe">
-    Default. `app.py` declares tables and routes. `pxt service` starts HTTP.
+  <Card title="Chat agent" icon="comments">
+    The default app is the chat agent. You can insert documents without an API key; `/ask` needs `ANTHROPIC_API_KEY`.
 
     ```bash
     uvx pixeltable-new myapp
+    pxt schema update app.py agent
     ```
   </Card>
-  <Card title="Batch" icon="gears">
-    Insert, let computed columns run, export, exit. No HTTP.
+  <Card title="Video search" icon="film">
+    Extracts video frames at 1 FPS, indexes them with CLIP, and accepts image uploads.
 
     ```bash
-    uvx pixeltable-new myapp --batch
+    uvx pixeltable-new myapp --video
+    pxt schema update app.py videointel
     ```
   </Card>
 </Columns>
 
-Already have FastAPI: apply the file, then `app.include_router(api)` on the
-router declared in `app.py`.
-
-## What serving writes
-
-<Columns cols={2}>
-  <Card title="On disk" icon="folder">
-    <Tree>
-      <Tree.Folder name="myapp" defaultOpen>
-        <Tree.File name="pixeltable.toml" />
-        <Tree.File name="app.py" highlight />
-        <Tree.File name="pyproject.toml" />
-      </Tree.Folder>
-    </Tree>
-  </Card>
-  <Card title="In the catalog" icon="database">
-    After `pxt schema update app.py pipeline`:
-
-    <Tree>
-      <Tree.Folder name="pipeline" defaultOpen>
-        <Tree.File name="documents" />
-        <Tree.File name="images" />
-      </Tree.Folder>
-    </Tree>
-  </Card>
-</Columns>
-
-Same file against Cloud:
+To run the same starter app on Pixeltable Cloud, create the hosted database, then create tables and start services against that `pxt://` URI:
 
 ```bash
-pxt db update pxt://org:db
-pxt schema update app.py pxt://org:db
-pxt service update app.py pxt://org:db
+pxt db update pxt://org:mydb
+pxt schema update app.py pxt://org:mydb
+pxt service update app.py pxt://org:mydb
 ```
 
-[Deploy to Pixeltable Cloud](/howto/deployment/cloud).
+[Deploy to Pixeltable Cloud](/howto/deployment/cloud). `pxt service run` starts a service in your terminal and cannot target Cloud; use `pxt service update` for hosted endpoints.
 
 <CardGroup cols={2}>
   <Card title="AI Skills" icon="robot" href="/resources/ai-skills">
     Teach an agent to write `TableModel` in `app.py`.
   </Card>
   <Card title="Clone the kit" icon="github" href="https://github.com/pixeltable/pixeltable-starter-kit">
-    `serving/` and `batch/` in one repo. Extra DAGs in `examples/`.
+    `chat-agent/` and `video-search/` in one repo.
   </Card>
 </CardGroup>

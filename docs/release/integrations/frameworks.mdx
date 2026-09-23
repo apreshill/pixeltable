@@ -9,11 +9,9 @@ overview](/integrations) page. This page is a quick browse by task. Each card li
 for named open models that ship their own UDFs (SAM 3, CLIP, DETR, ViT, Whisper, …) see
 [Open models](/integrations/open-models).
 
-Providers are functions on a `TableModel`. Apply with `pxt schema update`. Notebooks can still `add_computed_column()`. API keys and extras are on each provider page.
+Each AI provider is a function you assign as a computed column on a `TableModel`. Create the table with `pxt schema update`. In notebooks you can still call `add_computed_column()`. Each provider page lists its API key and optional extras.
 
 ```python
-from __future__ import annotations
-
 import pixeltable as pxt
 import pixeltable.functions as pxtf
 

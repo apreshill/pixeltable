@@ -1,15 +1,19 @@
 ---
-title: 'Coming from...'
-sidebarTitle: 'Coming from...'
-description: 'Insert a row. Chunks, frames, or tool calls appear as columns. No extra sync job.'
+title: 'Migrate to Pixeltable'
+sidebarTitle: 'Migrate'
+description: 'Pick the stack you already run. Inserting a row replaces the extra store or orchestrator.'
 icon: 'right-left'
 ---
 
-Apply with `pxt schema update app.py my_app`, then `t = pxt.get_table('my_app.docs')`.
+Hosted catalog: [Cloud](/howto/deployment/cloud). This page maps the stack you already run onto Pixeltable.
+
+Defining the class does not create the table. Run `pxt schema update app.py my_app` first ([Quickstart](/overview/quick-start)); the snippets assume that already ran.
 
 <Tabs>
-  <Tab title="RAG" icon="file-lines">
-    Insert a document. Chunks and embeddings update.
+  <Tab title="Pinecone and Milvus" icon="magnifying-glass">
+    <div id="pinecone-and-milvus" />
+
+    You do not need a separate vector database. The embedding index sits on the column. Insert keeps it current.
 
     ```python
     import pixeltable as pxt
@@ -18,73 +22,55 @@ Apply with `pxt schema update app.py my_app`, then `t = pxt.get_table('my_app.do
     TableModel = pxt.model_base()
 
 
-    class Docs(TableModel, name='docs'):
-        pdf: pxt.Document
-        source: pxt.String
-
-
-    class Chunks(
-        TableModel,
-        name='chunks',
-        base=Docs,
-        iterator=pxtf.document.document_splitter(
-            Docs.pdf, separators='sentence,token_limit', limit=300
-        ),
-    ):
+    class Items(TableModel, name='items'):
+        body: pxt.String
         __indexes__ = [
             pxt.EmbeddingIndex(
-                # iterator output, not redeclared
-                text,  # type: ignore[name-defined]
+                body,
                 embedding=pxtf.huggingface.sentence_transformer.using(
                     model_id='sentence-transformers/all-MiniLM-L6-v2'
                 ),
-                name='text_idx',
+                name='body_idx',
             )
         ]
     ```
 
     ```python
-    chunks = pxt.get_table('my_app.chunks')
-
-
-    @pxt.query
-    def retrieve(question: str, top_k: int = 5):
-        sim = chunks.text.similarity(string=question)
-        return chunks.order_by(sim, asc=False).limit(top_k).select(
-            chunks.text
-        )
+    items = pxt.get_table('my_app.items')
+    sim = items.body.similarity(string='application file')
+    items.order_by(sim, asc=False).limit(5).select(items.body)
     ```
 
-    [RAG pipeline cookbook](/howto/cookbooks/agents/pattern-rag-pipeline)
+    [Embedding indexes](/platform/embedding-indexes)
   </Tab>
-  <Tab title="Media" icon="film">
-    Insert a video. Frames appear as rows.
+  <Tab title="Postgres" icon="database">
+    You do not need a separate RDBMS for application rows. Typed columns, insert, and select live in the catalog.
 
     ```python
     import pixeltable as pxt
-    import pixeltable.functions as pxtf
 
     TableModel = pxt.model_base()
 
 
-    class Videos(TableModel, name='videos'):
-        video: pxt.Video
-
-
-    class Frames(
-        TableModel,
-        name='frames',
-        base=Videos,
-        iterator=pxtf.video.frame_iterator(Videos.video, fps=1),
-    ):
-        # iterator output
-        thumb = frame.resize((256, 256))  # type: ignore[name-defined]
+    class Orders(TableModel, name='orders'):
+        sku: pxt.String
+        qty: pxt.Int
+        note: pxt.String | None
+        __indexes__ = [pxt.BtreeIndex(sku)]
     ```
 
-    [Extract video frames](/howto/cookbooks/video/video-extract-frames)
+    ```python
+    orders = pxt.get_table('my_app.orders')
+    orders.insert([{'sku': 'a1', 'qty': 2, 'note': None}])
+    orders.where(orders.qty > 1).select(orders.sku, orders.qty).collect()
+    ```
+
+    If another system must keep a SQL copy, export with `export_sql` (example on [Self-hosting](/howto/deployment/overview)).
   </Tab>
-  <Tab title="Agents" icon="robot">
-    Insert a message. Tool calls and the answer are columns.
+  <Tab title="LangGraph" icon="robot">
+    <div id="langgraph" />
+
+    You do not need StateGraph, ToolNode, or a checkpointer. After `pxt schema update`, insert `{'message': '...'}` and read `response` and `tool_output`.
 
     ```python
     import pixeltable as pxt
@@ -113,6 +99,43 @@ Apply with `pxt schema update app.py my_app`, then `t = pxt.get_table('my_app.do
 
     [Tool calling cookbook](/howto/cookbooks/agents/llm-tool-calling)
   </Tab>
+  <Tab title="Scripts and Airflow" icon="gears">
+    <div id="scripts-and-airflow" />
+
+    You do not need a frame loop, cron, or a full re-run. Insert a video. The iterator adds a `frame` column on `Frames`; `thumb` is a computed column from that `frame`.
+
+    ```python
+    import pixeltable as pxt
+    import pixeltable.functions as pxtf
+
+    TableModel = pxt.model_base()
+
+
+    class Videos(TableModel, name='videos'):
+        video: pxt.Video
+
+
+    class Frames(
+        TableModel,
+        name='frames',
+        base=Videos,
+        iterator=pxtf.video.frame_iterator(Videos.video, fps=1),
+    ):
+        # iterator output
+        thumb = frame.resize((256, 256))  # type: ignore[name-defined]
+    ```
+
+    [Extract video frames](/howto/cookbooks/video/video-extract-frames)
+  </Tab>
 </Tabs>
 
-Same insert route as [Quickstart](/overview/quick-start). Route API: [HTTP serving](/howto/deployment/serving).
+After `pxt schema update`, insert with `table.insert([...])` as in the snippets above, or POST after `pxt service update` ([Quickstart](/overview/quick-start)).
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/overview/quick-start">
+    Write `app.py`, run `pxt schema update`, then insert from Python or HTTP.
+  </Card>
+  <Card title="HTTP serving" icon="globe" href="/howto/deployment/serving">
+    Insert, compute, update, delete, query, uploads, background jobs.
+  </Card>
+</CardGroup>

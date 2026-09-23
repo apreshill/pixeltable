@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from keyword import iskeyword as is_python_keyword
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import pgvector.sqlalchemy
 import sqlalchemy as sql
@@ -21,7 +20,7 @@ from pixeltable.type_system import sa_type_as_dict
 from pixeltable.types import ColumnSpec
 from pixeltable.utils.object_stores import ObjectOps
 
-from .globals import MediaValidation, is_system_column_name, is_valid_identifier
+from .globals import MediaValidation, fold_identifier, is_system_column_name, is_valid_identifier
 from .types import ColumnVersionMd, QColumnId
 
 if TYPE_CHECKING:
@@ -103,7 +102,7 @@ class Column:
         self.name = name
         self.tbl_handle = tbl_handle
         if col_type is None and computed_with is None:
-            raise excs.Error(
+            raise excs.InternalError(
                 excs.ErrorCode.INTERNAL_ERROR,
                 f'Column {name!r}: `col_type` is required if `computed_with` is not specified',
             )
@@ -348,7 +347,8 @@ class Column:
     @classmethod
     def validate_name(cls, name: str) -> None:
         """Check that a name is usable as a pixeltable column name"""
-        if is_system_column_name(name) or is_python_keyword(name):
+        folded_name = fold_identifier(name)
+        if is_system_column_name(folded_name) or is_python_keyword(folded_name):
             raise excs.RequestError(
                 excs.ErrorCode.INVALID_COLUMN_NAME,
                 f'{name!r} is a reserved name in Pixeltable; please choose a different column name.',

@@ -18,14 +18,17 @@ Choose views over tables when your data is derived from other base tables and ne
 </Note>
 
 <Note>
-**App vs notebook.** An application's contract is a `TableModel` in `app.py`, applied with `pxt schema update`. Notebooks and tests use `pxt.create_table()` / `pxt.create_view()`.
+Production apps declare views as `TableModel` classes in a Python file and create them with `pxt schema update`. Notebooks and tests can still call `pxt.create_table()` / `pxt.create_view()`.
+</Note>
+
+<Note>
+The `token_limit` separator below needs `tiktoken`, which the base install does not include:
+`pip install tiktoken`.
 </Note>
 
 ## Phase 1: Define your base table and view structure
 
 ```python
-from __future__ import annotations
-
 import pixeltable as pxt
 import pixeltable.functions as pxtf
 

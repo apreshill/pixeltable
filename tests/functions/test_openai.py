@@ -23,7 +23,7 @@ from ..utils import (
 )
 from .tool_utils import run_tool_invocations_test, server_state, stock_price, weather
 
-pytestmark = pytest.mark.local('UDF/integration test')
+pytestmark = pytest.mark.db_roots('local', reason='UDF/integration test')
 
 _logger = logging.getLogger('pixeltable_test')
 
@@ -69,7 +69,8 @@ class TestOpenai:
         assert "'vtt': String" in tr_type
         assert "'segments':" in tr_type
         assert (
-            "optional_keys=['duration', 'language', 'logprobs', 'segments', 'srt', 'text', 'usage', 'vtt', 'words']"
+            "optional_keys=['duration', 'language', 'languages', 'logprobs', 'segments', 'srt', 'text', "
+            "'usage', 'vtt', 'words']"
         ) in tr_type
         tl_type = t.get_metadata()['columns']['translation']['type_']
         assert "'text': String" in tl_type

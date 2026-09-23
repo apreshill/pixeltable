@@ -11,7 +11,7 @@ from ..utils import (
 )
 from .tool_utils import run_tool_invocations_test
 
-pytestmark = pytest.mark.local('UDF/integration test')
+pytestmark = pytest.mark.db_roots('local', reason='UDF/integration test')
 
 
 @pytest.mark.remote_api
@@ -31,12 +31,12 @@ class TestAnthropic:
                 messages=messages,
                 model='claude-haiku-4-5',
                 max_tokens=300,
+                # the sampling params (temperature, top_k, top_p) are not part of the messages API
                 model_kwargs={
                     'metadata': {'user_id': 'pixeltable'},
                     'stop_sequences': ['STOP'],
                     'system': 'You are an ordinary person walking down the street.',
-                    'temperature': 0.7,
-                    'top_k': 40,
+                    'service_tier': 'auto',
                 },
             )
         )

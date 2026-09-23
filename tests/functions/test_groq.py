@@ -5,7 +5,7 @@ import pixeltable as pxt
 from ..utils import rerun, skip_test_if_no_client, skip_test_if_not_installed, validate_update_status
 from .tool_utils import stock_price
 
-pytestmark = pytest.mark.local('UDF/integration test')
+pytestmark = pytest.mark.db_roots('local', reason='UDF/integration test')
 
 
 @pytest.mark.remote_api
@@ -27,8 +27,8 @@ class TestGroq:
                 model_kwargs={
                     'temperature': 0.8,
                     'top_p': 0.95,
-                    'max_tokens': 300,
-                    'stop': ['\n'],
+                    'max_tokens': 1000,
+                    'reasoning_effort': 'low',
                     'response_format': {'type': 'text'},
                 },
             )

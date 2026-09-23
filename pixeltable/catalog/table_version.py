@@ -25,7 +25,14 @@ from pixeltable.runtime import get_runtime
 from pixeltable.utils.object_stores import ObjectOps
 
 from .column import Column
-from .globals import _ROWID_COLUMN_NAME, IndexSpec, MediaValidation, is_valid_identifier
+from .globals import (
+    _ROWID_COLUMN_NAME,
+    IndexSpec,
+    MediaValidation,
+    fold_identifier,
+    fold_mapping_keys,
+    is_valid_identifier,
+)
 from .tbl_ops import (
     CreateColumnMdOp,
     CreateStoreColumnsOp,
@@ -366,11 +373,12 @@ class TableVersion:
         if not value_expr.is_valid:
             col_name = schema_col_md.name if schema_col_md is not None else '<unnamed>'
             message = '\n'.join(
-                [
+                (
                     f'The computed column {col_name!r} in table {self.name!r} is no longer valid.',
-                    value_expr.validation_error,
-                    'You can continue to query existing data from this column, but evaluating it on new data will raise an error.',  # noqa: E501
-                ]
+                    value_expr.validation_error.catalog_error_msg(),
+                    'You can continue to query existing data from this column, '
+                    'but evaluating it on new data will raise an error.',
+                )
             )
             warnings.warn(message, category=excs.PixeltableWarning)  # noqa: B028
         return value_expr
@@ -449,6 +457,7 @@ class TableVersion:
         return f'idx_{self.id.hex}_{idx_id}'
 
     def add_index(self, col: Column, idx_name: str | None, idx: index.IndexBase) -> UpdateStatus:
+        idx_name = None if idx_name is None else fold_identifier(idx_name)
         validate_idxs(self.id, [IndexSpec(col, idx_name, idx)], self.has_default_idxs, self.idxs.values())
         # we're creating a new schema version
         self.bump_version(bump_schema_version=True)
@@ -726,7 +735,7 @@ class TableVersion:
                     get_runtime().catalog.convert_sql_exc(exc, self.id, self.handle, convert_db_excs=True)
                     # If it wasn't converted, re-raise as a generic Pixeltable error
                     # (this means it's not a known concurrency error; it's something else)
-                    raise excs.Error(
+                    raise excs.InternalError(
                         excs.ErrorCode.INTERNAL_ERROR,
                         f'Unexpected SQL error during execution of computed column {col.name!r}:\n{exc}',
                     ) from exc
@@ -937,6 +946,9 @@ class TableVersion:
 
     def rename_column(self, old_name: str, new_name: str) -> None:
         """Rename a column."""
+        Column.validate_name(new_name)
+        old_name = fold_identifier(old_name)
+        new_name = fold_identifier(new_name)
         if not self.is_mutable:
             raise excs.RequestError(
                 excs.ErrorCode.UNSUPPORTED_OPERATION, f'Cannot rename column for immutable table {self.name!r}'
@@ -948,8 +960,9 @@ class TableVersion:
             raise excs.RequestError(
                 excs.ErrorCode.UNSUPPORTED_OPERATION, f'Cannot rename base table column {col.name!r}'
             )
-        if not is_valid_identifier(new_name):
-            raise excs.RequestError(excs.ErrorCode.INVALID_COLUMN_NAME, f'Invalid column name: {new_name}')
+        if old_name == new_name:
+            # no-op: return early and do not create a new schema version
+            return
         if new_name in self.cols_by_name:
             raise excs.AlreadyExistsError(excs.ErrorCode.COLUMN_ALREADY_EXISTS, f'Column {new_name!r} already exists')
         del self.cols_by_name[old_name]
@@ -1195,22 +1208,25 @@ class TableVersion:
         self, value_spec: dict[str, Any], allow_pk: bool, allow_exprs: bool, allow_media: bool
     ) -> dict[Column, exprs.Expr]:
         update_targets: dict[Column, exprs.Expr] = {}
-        for col_name, val in value_spec.items():
-            if not isinstance(col_name, str):
+        for raw_col_name in value_spec:
+            if not isinstance(raw_col_name, str):
                 raise excs.RequestError(
                     excs.ErrorCode.INVALID_ARGUMENT,
-                    f'Update specification: dict key must be column name; got {col_name!r}',
+                    f'Update specification: dict key must be column name; got {raw_col_name!r}',
                 )
+        value_spec = fold_mapping_keys(value_spec)
+
+        for col_name, val in value_spec.items():
             if col_name == _ROWID_COLUMN_NAME:
                 # a valid rowid is a list of ints, one per rowid column
                 num_rowid_cols = len(self.store_tbl.rowid_columns())
                 if len(val) != num_rowid_cols:
-                    raise excs.Error(
+                    raise excs.InternalError(
                         excs.ErrorCode.INTERNAL_ERROR,
                         f'Malformed _rowid: expected {num_rowid_cols} components, got {len(val)}',
                     )
                 if not all(isinstance(el, int) for el in val):
-                    raise excs.Error(
+                    raise excs.InternalError(
                         excs.ErrorCode.INTERNAL_ERROR, f'Malformed _rowid: all components must be int, got {val!r}'
                     )
                 continue
@@ -1222,7 +1238,8 @@ class TableVersion:
                     excs.ErrorCode.UNSUPPORTED_OPERATION,
                     f'Column {col.name!r} is a base table column and cannot be updated',
                 )
-            if col.is_computed:
+            is_match_col = col.is_pk and allow_pk  # batch_update() provides a pk value
+            if col.is_computed and not is_match_col:
                 raise excs.RequestError(
                     excs.ErrorCode.UNSUPPORTED_OPERATION, f'Column {col_name!r} is computed and cannot be updated'
                 )
@@ -1809,6 +1826,7 @@ class TableVersion:
         return {info.val_col for info in self.idxs.values() if info.col.id in col_ids and info.val_col is not None}
 
     def get_idx(self, col: Column, idx_name: str | None, idx_cls: type[index.IndexBase]) -> TableVersion.IndexInfo:
+        idx_name = None if idx_name is None else fold_identifier(idx_name)
         if not self.supports_idxs:
             raise excs.RequestError(excs.ErrorCode.UNSUPPORTED_OPERATION, 'Snapshot does not support indices')
         candidates = [info for info in self.idxs_by_col.get(col.qid, []) if isinstance(info.idx, idx_cls)]
@@ -1826,6 +1844,10 @@ class TableVersion:
                 excs.ErrorCode.INDEX_NOT_FOUND, f'Index {idx_name!r} not found for column {col.name!r}'
             )
         return candidates[0] if idx_name is None else next(info for info in candidates if info.name == idx_name)
+
+    def get_idx_by_name(self, name: str) -> TableVersion.IndexInfo | None:
+        """Return the index with the given name, or None if there is none."""
+        return self.idxs_by_name.get(fold_identifier(name))
 
     def find_btree_index(self, col: Column) -> TableVersion.IndexInfo | None:
         """Return the B-tree index on col, or None if it doesn't have one."""

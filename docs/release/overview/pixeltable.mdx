@@ -1,61 +1,72 @@
 ---
 title: 'Why Pixeltable?'
-description: 'The unified multimodal backend for AI data apps. Database, orchestration, and serving in one application file.'
-icon: 'table'
+description: 'The unified multimodal backend agents build with. Database, orchestration, and serving in one Python file.'
 ---
 
-Pixeltable is the unified multimodal backend for AI data apps: the database, orchestration, and serving layers in **one application file** (`app.py`). You process media, run models, and serve the result without assembling a blob store, a vector database, an orchestrator, and glue.
+<Note>
+  Pixeltable Cloud is in Limited Beta. Email [contact@pixeltable.com](mailto:contact@pixeltable.com) if you are interested.
+</Note>
 
-Insert a row. Computed columns run. Indexes stay current.
-
-<Columns cols={3}>
-  <Card title="Store" icon="database">
-    `pxt schema update` creates the tables `app.py` declares. Images, video, audio, documents, and structured columns live in one catalog.
-  </Card>
-  <Card title="Transform" icon="bolt">
-    Assigned columns run on insert. Embedding indexes update. No extra queue or cache to keep in sync.
-  </Card>
-  <Card title="Serve" icon="globe">
-    `pxt service update` starts HTTP from the same file. `pxt service list` prints the URL.
-  </Card>
-</Columns>
-
-```python
-import pixeltable as pxt
-import pixeltable.functions as pxtf
-from pixeltable.serving import FastAPIRouter
-
-TableModel = pxt.model_base()
-
-
-class Docs(TableModel, name='docs'):
-    title: pxt.String
-    body: pxt.String | None
-    title_upper = pxtf.string.upper(title)
-
-
-ingest = FastAPIRouter(name='ingest')
-ingest.add_insert_route(
-    Docs,
-    path='/docs',
-    inputs=[Docs.title, Docs.body],
-    outputs=[Docs.title, Docs.title_upper],
-)
-```
-
-[Quickstart](/overview/quick-start) is the first run. Schema, database, and services: [How it works](/overview/how-it-works). Same file on a hosted catalog: [Cloud](/howto/deployment/cloud).
-
-RAG, media, agents, and HTTP are columns and views in that file. They update when the row does. Stack-shaped snippets: [Coming from...](/howto/coming-from).
-
-**Apps vs notebooks.** To ship an app, put tables in a Python file and apply it. In a notebook or a test you can create tables as you go. Same catalog either way; the file is what you keep.
-
-## Start here
+## Before
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="bolt" href="/overview/quick-start">
-    Write the file, apply it, hit the insert endpoint.
+  <Card title="A glued stack" icon="layer-group">
+    Most stacks glue object storage, a warehouse, a vector database, an orchestrator, and custom endpoints.
   </Card>
-  <Card title="How it works" icon="layer-group" href="/overview/how-it-works">
-    `diff`, `update`, and `prune` make a target match the file.
+  <Card title="You pay for the joints" icon="link">
+    Each extra store or orchestrator is another system to operate.
   </Card>
 </CardGroup>
+
+Pixeltable is the database, the orchestration, and the serving: tables, computed columns, indexes, and endpoints in **one Python file** (`app.py`).
+
+## With Pixeltable
+
+<CardGroup cols={2}>
+  <Card title="One catalog" icon="table">
+    Images, video, audio, documents, and ordinary columns.
+  </Card>
+  <Card title="Transforms as columns" icon="arrows-rotate">
+    Incremental, not a pipeline you re-run.
+  </Card>
+  <Card title="Indexes that follow the data" icon="magnifying-glass">
+    Embeddings stay current with the rows.
+  </Card>
+  <Card title="Endpoints from the same file" icon="globe">
+    Or skip `pxt service update` and insert from Python.
+  </Card>
+</CardGroup>
+
+If you process media and serve model pipelines, that file is the backend you keep. Insert a row. Transforms run. Indexes stay current.
+
+Locally, create those tables with `pxt schema update`. Start the endpoints with `pxt service update`. On [Pixeltable Cloud](/howto/deployment/cloud), use the same `app.py` after you set `PIXELTABLE_API_KEY` and run `pxt db update`. That Cloud command creates or updates the hosted database. It does not insert rows and does not start app endpoints.
+
+<Card title="Quickstart" icon="bolt" href="/overview/quick-start">
+  Write `app.py`, run `pxt schema update` and `pxt service update`, then POST a row.
+</Card>
+
+## What you declare
+
+A `TableModel` class becomes a table when you run `pxt schema update`. An annotation (`title: pxt.String`) is a stored column: the value you insert. A bare type is required; use `pxt.String | None` when the value may be missing. An assignment (`title_upper = ...`) is a computed column. It runs on insert and on update. An embedding index lives on the model, so new rows are searchable without a separate vector database. A `FastAPIRouter` in the same file defines endpoints, for example POST a row and get computed columns back.
+
+Endpoints are optional. Skip `pxt service update` if you insert from Python, then export. Views, UDFs, versioning, and import/export start in the [User Guide](/platform/type-system).
+
+Notebooks and tests can still call `pxt.create_table()`. An app declares tables in `app.py`.
+
+## Built for
+
+<CardGroup cols={3}>
+  <Card title="Multimodal backend" icon="file-lines" href="/use-cases/multimodal-backend">
+    RAG and live APIs.
+  </Card>
+  <Card title="Agents" icon="robot" href="/use-cases/agentic-workflows">
+    Tool calls as columns.
+  </Card>
+  <Card title="Media pipelines" icon="film" href="/use-cases/media-processing">
+    Frames and transcripts as rows.
+  </Card>
+</CardGroup>
+
+Coming from Pinecone, LangChain, or hand-rolled FastAPI? See [Migrate](/howto/coming-from).
+
+The longer argument: [Making Multimodal More Lovable](https://www.pixeltable.com/blog/making-multimodal-more-lovable).

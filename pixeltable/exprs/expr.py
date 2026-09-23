@@ -15,7 +15,7 @@ import sqlalchemy as sql
 from deprecated import deprecated
 from typing_extensions import TypeForm
 
-from pixeltable import catalog, exceptions as excs, func, type_system as ts
+from pixeltable import catalog, exceptions as excs, type_system as ts
 
 from .data_row import DataRow
 from .globals import ArithmeticOperator, ComparisonOperator, LiteralPythonTypes, LogicalOperator, StringOperator
@@ -24,6 +24,16 @@ if TYPE_CHECKING:
     from pixeltable import exprs, func
 
     from .expr_dict import ExprDict
+
+
+class ValidationError:
+    @abc.abstractmethod
+    def catalog_error_msg(self) -> str:
+        """The error to display if this invalid Expr was deserialized from a stored catalog."""
+
+    @abc.abstractmethod
+    def protocol_error_msg(self) -> str:
+        """The error to display if this invalid Expr was deserialized from a proxy server request."""
 
 
 class ExprScope:
@@ -146,7 +156,7 @@ class Expr(abc.ABC):
         return False
 
     @property
-    def validation_error(self) -> str | None:
+    def validation_error(self) -> ValidationError | None:
         """
         Subclasses can override this to indicate that validation has failed after a catalog load.
 
@@ -435,6 +445,8 @@ class Expr(abc.ABC):
 
     def validate_storable(self, context: str) -> None:
         """Raise if this expr references a Function that cannot be persisted."""
+        from pixeltable import func
+
         from .function_call import FunctionCall
 
         for fn_call in self.subexprs(FunctionCall):
@@ -727,6 +739,8 @@ class Expr(abc.ABC):
         return function(self)
 
     def __dir__(self) -> list[str]:
+        from pixeltable import func
+
         attrs = ['isin', 'astype', 'apply']
         attrs += [f.name for f in func.FunctionRegistry.get().get_type_methods(self.col_type.type_enum)]
         return attrs
@@ -743,7 +757,7 @@ class Expr(abc.ABC):
         if self.col_type.is_array_type():
             if not isinstance(index, tuple):
                 index = (index,)
-            if any(not isinstance(i, (int, slice)) for i in index):
+            if any(not _is_valid_array_index(i) for i in index):
                 raise AttributeError(f'Invalid array indices: {index}')
             return ArraySlice(self, index)
         raise AttributeError(f'Type {self.col_type} is not subscriptable')
@@ -1000,6 +1014,8 @@ class Expr(abc.ABC):
                 parameter.
             col_type: The pixeltable result type of the new `Function`.
         """
+        from pixeltable import func
+
         if col_type is not None:
             # col_type is specified explicitly
             fn_type = col_type
@@ -1069,6 +1085,15 @@ class Expr(abc.ABC):
         return func.make_function(
             decorated_fn=lambda x: fn(x), return_type=fn_type, param_types=[self.col_type], function_name=fn.__name__
         )
+
+
+def _is_valid_array_index(index: object) -> bool:
+    if isinstance(index, slice):
+        if not all(el is None or isinstance(el, int) for el in (index.start, index.stop, index.step)):
+            return False
+        # numpy and slice.indices() both reject a zero step; caught here so it does not reach either
+        return index.step != 0
+    return isinstance(index, int)
 
 
 # A dictionary of result types of various stdlib functions that are

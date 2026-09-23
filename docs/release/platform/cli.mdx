@@ -1,15 +1,26 @@
 ---
 title: "CLI Reference"
 sidebarTitle: "CLI (pxt)"
-description: "Flags and exit codes for pxt schema, pxt service, pxt db, and catalog inspect."
+description: "Inspect, query, and serve Pixeltable catalogs from the terminal with the pxt command."
 ---
 
-The `pxt` CLI ships with the `pixeltable` package. Catalog inspect and query go through a local daemon (~40 ms after the first command). First catalog command starts it on `127.0.0.1:22089`. Override with `PXT_PORT`. HTTP from an application file is `pxt service` (`pip install 'pixeltable[serve]'`). Verbs `diff` / `update` / `prune`: [How it works](/overview/how-it-works).
+The `pxt` CLI ships with the `pixeltable` package. It covers two surfaces:
+
+- **Catalog operations** -- inspect, query, and manage tables, views, and directories. Backed by a long-lived local daemon so each command takes ~40 ms after the first invocation.
+- **Service deployment** -- run the services defined in an application file with `pxt service`. Requires the `serve` extra (which pulls in `fastapi[standard]` and `uvicorn`):
+
+  ```bash
+  pip install 'pixeltable[serve]'
+  ```
+
+Verify the installation:
 
 ```bash
 pxt --help
 pxt health
 ```
+
+On the first catalog command, `pxt` auto-spawns a daemon bound to `127.0.0.1:22089`. The daemon survives across shells and stays warm for subsequent commands. Override the port with `PXT_PORT`.
 
 ## Command structure
 
@@ -24,11 +35,11 @@ Use `pxt <command> --help` for per-subcommand flags and examples.
 | **Inspection** | `ls`, `describe`, `columns`, `computed`, `idxs`, `history`, `status`, `config` |
 | **Navigation** | `cd`, `pwd` |
 | **Query** | `rows`, `get`, `count`, `errors` |
-| **Mutation** | `drop`, `drop-dir`, `rename`, `mv`, `revert` |
+| **Mutation** | `drop`, `drop-dir`, `rename`, `mv`, `recompute`, `revert` |
 | **Schema** | `schema diff`, `schema update`, `schema prune` |
 | **Interactive** | `shell` |
 | **Serving** | `service` |
-| **Cloud** | `db`, `org` |
+| **Cloud** | `db`, `secret`, `org` |
 | **Lifecycle** | `daemon`, `dashboard`, `health` |
 
 ### Universal flags
@@ -38,17 +49,18 @@ These flags work the same way across the catalog commands that support them and 
 | Flag | Available on | Description |
 |---|---|---|
 | `-h`, `--help` | Every command | Print the command's usage and examples |
-| `--json` | Inspection, query, and mutation commands (`ls`, `describe`, `columns`, `computed`, `idxs`, `history`, `status`, `config`, `rows`, `get`, `count`, `errors`, `drop`, `drop-dir`, `rename`, `mv`, `revert`), the `schema` and `service` verbs, plus `db`, `org`, and `daemon status` | Emit machine-readable JSON instead. Not accepted by `shell` (interactive REPL), `health` (always JSON), `dashboard` (URL launcher), the navigation commands (`cd`, `pwd`), or the lifecycle subcommands that print plain status lines (`daemon start`/`stop`). |
-| `-n`, `--dry-run` | Every catalog mutation (`drop`, `drop-dir`, `rename`, `mv`, `revert`), plus `schema update`, `schema prune`, `service update` and `service prune` | Print the intended action; don't execute. |
-| `-f`, `--force` | Mutations that prompt for confirmation (`drop`, `drop-dir`, `revert`, `schema update`, `schema prune`, `service update`, `service prune`) | Skip the `[y/N]` prompt. Required in non-interactive contexts. `rename` and `mv` don't prompt and don't accept `-f`. |
+| `--json` | Inspection, query, and mutation commands (`ls`, `describe`, `columns`, `computed`, `idxs`, `history`, `status`, `config`, `rows`, `get`, `count`, `errors`, `drop`, `drop-dir`, `rename`, `mv`, `recompute`, `revert`), the `schema` and `service` verbs, plus `db`, `secret`, `org`, and `daemon status` | Emit machine-readable JSON instead. Not accepted by `shell` (interactive REPL), `health` (always JSON), `dashboard` (URL launcher), the navigation commands (`cd`, `pwd`), or the lifecycle subcommands that print plain status lines (`daemon start`/`stop`). |
+| `--json-schema` | `schema diff`, `service diff`, `db diff`, `db status`, `service list` | Print the JSON Schema of that command's `--json` output, with descriptions of every field and enum value, and exit. |
+| `-n`, `--dry-run` | Every catalog mutation (`drop`, `drop-dir`, `rename`, `mv`, `recompute`, `revert`), plus `schema update`, `schema prune`, `service update` and `service prune` | Print the intended action; don't execute. |
+| `-f`, `--force` | Mutations that prompt for confirmation (`drop`, `drop-dir`, `recompute`, `revert`, `schema update`, `schema prune`, `service update`, `service prune`) | Skip the `[y/N]` prompt. Required in non-interactive contexts. `rename` and `mv` don't prompt and don't accept `-f`. |
 
 ### Working directory
 
 `pxt cd` sets a working directory that is prepended to *relative* paths in later commands, and `pxt pwd` prints it -- the catalog analogue of a shell's `cd`/`pwd`.
 
 ```bash
-pxt cd my_dir  # later relative paths resolve here
-pxt pwd  # print the current working directory
+pxt cd my_dir                      # relative paths now resolve under my_dir
+pxt pwd                            # print the current working directory
 pxt ls sub                         # lists my_dir/sub
 pxt cd ..                          # up one level
 pxt cd                             # clear it
@@ -56,7 +68,7 @@ pxt cd                             # clear it
 
 Absolute paths ignore the working directory: a leading `/` (e.g. `pxt ls /other_dir`) resolves from the catalog root, and a `pxt://org:db/...` URI addresses a hosted catalog. `.` and `..` work in any path and resolve against the working directory; `..` at the catalog root keeps the root.
 
-The working directory is scoped to the **invoking terminal**, not the daemon globally -- it is keyed by the shell's session, sent with every command. So separate terminals have independent working directories, and, crucially, it does **not** leak into subprocesses or agents you launch: a spawned process runs under its own session with no working directory, so its `pxt` commands resolve relative paths from the catalog root regardless of what you set interactively.
+The working directory is scoped to the **invoking terminal**, not the daemon globally -- it is keyed by the shell's session, sent with every command. So separate terminals have independent working directories, and it does **not** leak into subprocesses or agents you launch: a spawned process runs under its own session with no working directory, so its `pxt` commands resolve relative paths from the catalog root regardless of what you set interactively.
 
 Because of that isolation, scripts and agents should address the catalog with absolute paths (`/...` or `pxt://...`) and ignore the working directory; it is a convenience for interactive terminal use.
 
@@ -64,7 +76,7 @@ Because of that isolation, scripts and agents should address the catalog with ab
 
 ```bash
 # inspect
-pxt ls -l  # root, with metadata
+pxt ls -l                          # everything under root, with metadata
 pxt ls some_dir --counts           # row counts (parallelized)
 pxt describe my_dir/my_table       # schema
 pxt rows my_dir/my_table -n 5      # first 5 stored cells
@@ -72,35 +84,49 @@ pxt rows my_dir/my_table -n 5      # first 5 stored cells
 # query
 pxt get my_dir/my_table 42         # PK lookup
 pxt count my_dir/my_table          # row count
-pxt errors my_dir/my_table  # rows where a computed column failed
+pxt errors my_dir/my_table         # rows where a computed column failed
 
 # ops
 pxt drop my_dir/my_table -f
 pxt mv my_dir/my_table other_dir
+pxt recompute my_dir/my_table summary -f
 pxt revert my_dir/my_table --steps 3 -f
 
 # navigate
-pxt cd my_dir  # working directory (this terminal)
+pxt cd my_dir                      # set the working directory (this terminal)
 pxt pwd                            # print it
 
+# projects
+pxt init                             # mark the current directory as a project root
+
 # declarative schemas
-pxt schema diff app.py my_app  # exit 2 = drift
-pxt schema update app.py my_app  # create and migrate
-pxt schema prune app.py my_app -f  # drop undeclared tables
+pxt schema check  app.py          # validate the file on its own, with no target
+pxt schema diff   app.py my_app   # what 'update' would change (exit 2 = drift)
+pxt schema diff   --json-schema   # JSON Schema for the --json output
+pxt schema update app.py my_app   # create and migrate the declared tables
+pxt schema prune  app.py my_app -f # drop the undeclared ones
 
 # interactive
 pxt shell
 
 # services declared in an application file
-pxt service diff app.py my_app  # exit 2 = drift
-pxt service update app.py my_app  # start or restart
-pxt service list  # what is running, and where
+pxt service check  app.py            # validate the file on its own, with no target
+pxt service diff   app.py my_app     # what 'update' would change (exit 2 = drift)
+pxt service diff   --json-schema     # JSON Schema for the --json output
+pxt service update app.py my_app     # start them, restarting what changed
+pxt service list                     # what is running, and where
+pxt service logs my_app/ingest       # what a service logged; pxt://myorg:mydb/my_app/ingest for a hosted one
 
-# cloud: databases
-pxt db create pxt://myorg:mydb
-pxt db list pxt://myorg
-pxt db diff pxt://myorg:mydb
-pxt db update pxt://myorg:mydb
+# cloud -- databases
+pxt db update pxt://myorg:mydb   # create the database, or bring it up to what the project declares
+pxt db diff   pxt://myorg:mydb   # what 'update' would change
+pxt db diff   --json-schema      # JSON Schema for the --json output
+pxt db list                      # the databases in your org
+pxt db logs   pxt://myorg:mydb   # what the database's pod logged
+
+# cloud -- secrets
+pxt secret set  pxt://myorg OPENAI_API_KEY=sk-...
+pxt secret list                  # the org your key reaches
 ```
 
 ## Inspection commands
@@ -145,7 +171,7 @@ pxt describe my_dir/my_table --json
 
 ### `pxt columns` / `pxt computed`
 
-List columns for one or more tables. `pxt computed` is shorthand for `pxt columns --computed`. The path argument may be a single table or a directory; a directory path lists columns for every table beneath it, recursively. A directory path may be a local path or a hosted uri (`pxt://org:db/...`). With no path, every table in the in-process catalog is listed.
+List columns for one or more tables. `pxt computed` is shorthand for `pxt columns --computed`. The path argument may be a single table or a directory; a directory path lists columns for every table beneath it, recursively. A directory path may be a local path or a hosted URI (`pxt://org:db/...`). With no path, every table in the in-process catalog is listed.
 
 | Flag | Description |
 |---|---|
@@ -154,9 +180,9 @@ List columns for one or more tables. `pxt computed` is shorthand for `pxt column
 ```bash
 pxt columns                       # every column in the catalog
 pxt columns my_dir/my_table       # one table
-pxt columns my_dir  # every table under a directory
+pxt columns my_dir                # every table under a directory, recursively
 pxt columns pxt://org:db          # every table in a hosted database
-pxt columns --computed  # computed columns, every table
+pxt columns --computed            # computed columns across every table
 pxt computed                      # same as above
 ```
 
@@ -171,7 +197,7 @@ List indexes. Shows both B-tree and embedding indexes by default; the `--embeddi
 ```bash
 pxt idxs                          # every index
 pxt idxs my_dir/my_table          # indexes on one table
-pxt idxs my_dir  # every table under a directory
+pxt idxs my_dir                   # every table under a directory, recursively
 pxt idxs pxt://org:db             # every table in a hosted database
 pxt idxs --embedding              # only embedding indexes
 ```
@@ -237,10 +263,10 @@ Look up a single row by primary key. A numeric-looking PK token is coerced to in
 | `--cols a,b,c` | Comma-separated column subset. Default: all stored columns |
 
 ```bash
-pxt get my_dir/my_table 42  # single-column PK, int
-pxt get my_dir/my_table some_string_id  # single-column PK, string
-pxt get my_dir/my_table 42 abc  # composite PK, declared order
-pxt get my_dir/my_table 42 --cols id,text  # listed columns
+pxt get my_dir/my_table 42                    # single-column PK, int
+pxt get my_dir/my_table some_string_id        # single-column PK, string
+pxt get my_dir/my_table 42 abc                # composite PK, in declared order
+pxt get my_dir/my_table 42 --cols id,text     # restrict to listed columns
 ```
 
 ### `pxt count`
@@ -265,7 +291,7 @@ pxt errors my_dir/my_table --col embedding
 
 ## Mutation commands
 
-Every mutation accepts the universal `-n`/`--dry-run` and `--json` flags. The destructive ones (`drop`, `drop-dir`, `revert`) also prompt `[y/N]` with a TTY and accept `-f`/`--force` to skip the prompt; in non-interactive contexts they refuse to proceed without `-f`. `rename` and `mv` don't prompt: renaming or moving a catalog entry is reversible and doesn't lose data.
+Every mutation accepts the universal `-n`/`--dry-run` and `--json` flags. The destructive ones (`drop`, `drop-dir`, `recompute`, `revert`) also prompt `[y/N]` with a TTY and accept `-f`/`--force` to skip the prompt; in non-interactive contexts they refuse to proceed without `-f`. `rename` and `mv` don't prompt: renaming or moving a catalog entry is reversible and doesn't lose data.
 
 ### `pxt drop`
 
@@ -277,7 +303,7 @@ Drop a table or view. Use `pxt drop-dir` for directories.
 
 ```bash
 pxt drop my_dir/my_table -f                 # drop a table
-pxt drop my_dir/my_table --cascade -f  # also drop views
+pxt drop my_dir/my_table --cascade -f       # also drop dependent views
 pxt drop my_dir/my_table -n                 # dry-run
 ```
 
@@ -291,12 +317,12 @@ Remove a directory. Use `pxt drop` for tables/views.
 
 ```bash
 pxt drop-dir my_dir -f            # remove an empty directory
-pxt drop-dir my_dir -r -f  # also drop contained tables/subdirs
+pxt drop-dir my_dir -r -f         # recursive: also remove contained tables/subdirs
 ```
 
 ### `pxt rename`
 
-Rename in place; the parent directory is preserved. `<new_name>` must be a single leaf name (no `/` or `.`). Takes only universal flags.
+Rename in place; the parent directory is preserved. `<new_name>` must be a single name component (no `/` or `.`). Takes only universal flags.
 
 ```bash
 pxt rename my_dir/old_name new_name
@@ -304,12 +330,35 @@ pxt rename my_dir/old_name new_name
 
 ### `pxt mv`
 
-Move a table/view/dir under a different directory; the leaf name is preserved. `<new_dir>` can be `''` or `/` for the root directory. Takes only universal flags.
+Move a table/view/dir under a different directory; the entry's own name is preserved. `<new_dir>` can be `''` or `/` for the root directory. Takes only universal flags.
 
 ```bash
-pxt mv my_dir/my_table other_dir  # -> other_dir/my_table
+pxt mv my_dir/my_table other_dir              # -> other_dir/my_table
 pxt mv my_dir/my_table /                      # move to root
 ```
+
+### `pxt recompute`
+
+Recompute one or more computed columns of a table. Mirrors `Table.recompute_columns()`, without its `where`
+predicate.
+
+| Flag | Description |
+|---|---|
+| `--errors-only` | Only the rows whose value is an error. Takes a single column |
+| `--no-cascade` | Do not recompute the computed columns and views that transitively depend on this one |
+
+```bash
+pxt recompute my_dir/my_table summary -f                  # the column and its dependents
+pxt recompute my_dir/my_table summary embedding -f        # several columns in one pass
+pxt recompute my_dir/my_table summary --errors-only -f    # only the rows that failed
+pxt recompute my_dir/my_table summary -n                  # what it would recompute, and over how many rows
+```
+
+<Warning>
+Recomputing evaluates the target columns over every row, which can require substantial computing resources.
+`--errors-only` limits that recomputation to only the rows that failed.
+`-n` reports the target table's own row count.
+</Warning>
 
 ### `pxt revert`
 
@@ -328,31 +377,96 @@ pxt revert my_dir/my_table --steps 3 -f       # roll back 3 versions
 Revert is irreversible. Run `pxt history my_dir/my_table` first to see what would be undone.
 </Warning>
 
+## Project layout
+
+`pxt schema` and `pxt service` read a Python file, and the tables they create refer back to the UDFs that file calls. A reference is a module path, so the file has to belong to a project. The **project root** is the directory with the project configuration, and every local module path is relative to it.
+
+`pxt init` writes that configuration in the current directory:
+
+```bash
+cd ~/proj
+pxt init                             # writes pixeltable.toml, making ~/proj the project root
+```
+
+That file has one entry for each database in the project:
+
+```toml
+[[pixeltable.database]]
+# the local database
+vars.media_dest = 's3://bucket/prefix'      # binds a ConfigVar declared by a schema
+
+[[pixeltable.database]]
+name = 'pxt://myorg:prod'                   # a hosted database
+system_dependencies = ['ffmpeg']            # what goes into its image
+```
+
+In a directory that already has a `pyproject.toml`, the same entry is appended there as `[[tool.pixeltable.database]]` instead, and that section marks the root.
+
+Every directory from the root down to a file becomes one component of that file's module path, so each of those directory names has to be a Python identifier:
+
+```
+~/proj/pixeltable.toml               # the project configuration; its directory is the root
+~/proj/ad_gen/app.py                 # a UDF here is recorded as 'ad_gen.app.<name>'
+~/proj/ad_gen/functions.py           # imported as 'from ad_gen.functions import ...'
+```
+
+Imports resolve from the root down. This is where a single-file recipe and a larger application diverge: a file directly under the root imports its neighbors by their bare names, so `recipe.py` and `functions.py` side by side use `from functions import ...`. Once an application moves into a subdirectory, that subdirectory joins the path: `from ad_gen.functions import ...`.
+
+A recorded path is how a later process -- the daemon, a serving worker, a hosted pod -- finds the UDF again, so a command given a file outside any project root is refused. `pxt schema check` and `pxt service check` validate a file on its own -- it imports without touching the catalog, it declares what the verb needs, and its columns refer to UDFs by paths another process can resolve:
+
+```bash
+pxt schema check app.py           # exit 0 valid, 1 invalid
+pxt service check app.py --json
+```
+
 ## Schema management
 
-The commands above act on one object at a time. `pxt schema diff` / `update` / `prune` apply the whole application file. Empty target and existing target are the same command. [How it works](/overview/how-it-works).
+The commands above act on one object at a time. `pxt schema` works differently: you describe the tables you want in a Python file, and the CLI reconciles a catalog to that description. Provisioning an empty target and evolving an existing one are the same command, so there is no separate first-time step.
 
 | Command | Description |
 |---|---|
 | `pxt schema diff SCHEMA TARGET` | Show what `update` would change. Read-only |
-| `pxt schema update SCHEMA TARGET` | Create the tables the schema declares under `TARGET`, and migrate existing ones |
+| `pxt schema update SCHEMA TARGET` | Create the tables declared by the schema under `TARGET`, and migrate existing ones |
 | `pxt schema prune SCHEMA TARGET` | Drop the tables under `TARGET` that the schema does not declare |
-| `pxt schema check SCHEMA` | Validate the file with no target |
-| `pxt schema example` | Write a working application file to start from |
+| `pxt schema check SCHEMA` | Validate the schema file on its own. Takes no `TARGET` and reads no catalog |
+| `pxt schema example` | Write a working schema file to start from |
 
-`SCHEMA` is a path to a Python file. `TARGET` is a catalog directory or a `pxt://` URI; it is created by `update` if it doesn't exist.
+`SCHEMA` is a path to a Python file. `TARGET` is a catalog: a local directory or a `pxt://` URI; it is created by `update` if it doesn't exist.
 
-### The application file
+### The schema file
 
-`pxt schema example --out app.py` writes every construct the DSL supports. `--brief` writes the [Quickstart](/overview/quick-start) file. Annotation vs assignment, `base=`, indexes: [How it works](/overview/how-it-works#schema).
+A schema file defines one or more models on a `pxt.model_base()`. Each model becomes one table, named by `name=`. `pxt schema example` writes a file covering every construct the schema DSL supports, so you never have to start from a blank page and never have to look up a construct:
+
+```bash
+pxt schema example --out app.py
+```
+
+`pxt schema example --brief` writes the minimal version instead:
+
+```python
+import pixeltable as pxt
+import pixeltable.functions as pxtf
+
+TableModel = pxt.model_base()
+
+class Docs(TableModel, name='docs'):
+    title: pxt.String
+    body: pxt.String | None
+    title_upper = pxtf.string.upper(title)
+
+class Titled(TableModel, name='titled', base=Docs.where(Docs.title != '')):
+    headline = Docs.title_upper + '!'         # a view of Docs, filtered by its base= query
+```
+
+An annotation (`name: type`) declares a stored column; an assignment (`name = expr`) declares a computed column. A model with `base=` becomes a view of that query's base model.
 
 The daemon imports the file, so it must be readable there. Its own directory is added to `sys.path`, so it can import modules sitting next to it.
 
-### Reviewing and applying
+### Reviewing and updating
 
 ```bash
 pxt schema diff   app.py my_app     # review
-pxt schema update app.py my_app     # apply
+pxt schema update app.py my_app     # create or migrate tables
 ```
 
 `diff` prints one line per table, then one per operation:
@@ -375,29 +489,29 @@ Plan: 0 create, 1 update, 1 unchanged, 1 extra  |  1 destructive
 | `-` | The column/index will be dropped |
 | `!` | The table cannot be migrated in place, or is not declared by the schema |
 
-### Applying
+### `pxt schema update`
 
 `update` creates missing tables and migrates existing ones, adding and dropping columns and indexes. It takes the same flags as the other mutations, plus one of its own:
 
 | Flag | Description |
 |---|---|
-| `-n`, `--dry-run` | Print the plan; apply nothing. Exit `2` if changes are pending |
+| `-n`, `--dry-run` | Print the plan; do not run `update`. Exit `2` if changes are pending |
 | `--allow-destructive` | Permit operations that drop a column or index |
 | `-f`, `--force` | Skip the `[y/N]` prompt shown before destructive operations |
 
 ```bash
-pxt schema update app.py my_app  # safe changes
-pxt schema update app.py my_app -n  # plan only
-pxt schema update app.py my_app --allow-destructive -f  # drops too
+pxt schema update app.py my_app                          # safe changes
+pxt schema update app.py my_app -n                       # the plan; does not run `update`
+pxt schema update app.py my_app --allow-destructive -f   # including drops
 ```
 
-If the plan contains a destructive operation and `--allow-destructive` is absent, nothing at all is applied and `update` exits `3`.
+If the plan contains a destructive operation and `--allow-destructive` is absent, `update` does not change the catalog and exits `3`.
 
 <Warning>
 Dropping a column or an index destroys its data. Run `pxt schema diff` (or `update -n`) first: the plan marks every operation `safe`, `DESTRUCTIVE`, or `UNSUPPORTED`.
 </Warning>
 
-Some differences cannot be applied in place: a table declared where a view exists, a changed iterator, or a column whose type or properties changed. Those are reported as `UNSUPPORTED`, nothing at all is applied, and `update` exits `1`. Adjust the application file or the table by hand.
+Some differences cannot be migrated in place: a table declared where a view exists, a changed iterator, or a column whose type or properties changed. Those are reported as `UNSUPPORTED`, `update` changes nothing, and it exits `1`. Adjust the application file or the table by hand.
 
 ### Exit codes
 
@@ -406,19 +520,19 @@ The schema commands report their outcome in the exit status, so a caller never h
 | Code | Meaning |
 |---|---|
 | `0` | The target agrees with the schema (including when there was nothing to do) |
-| `1` | Error: bad arguments, the application file failed to import, or a table cannot be reconciled |
+| `1` | Error: bad arguments, the schema file failed to import, or a table cannot be reconciled |
 | `2` | Changes are pending (`diff`, or `update -n` / `prune -n`) |
 | `3` | Refused: the plan is destructive and `--allow-destructive` was not given, or `-f` was needed to confirm without a terminal |
 
 A drift check in CI is therefore one command:
 
 ```bash
-pxt schema diff app.py pxt://acme:main/prod  # 0 / 2 / 1
+pxt schema diff app.py pxt://acme:main/prod    # 0 = in sync, 2 = drift, 1 = error
 ```
 
 ### Machine-readable plans
 
-`pxt schema diff --json` emits the whole plan as one object: `schema_file`, `catalog_dir`, `in_agreement`, `tables`, `extras`, and a `summary` with one count per resolution. Each entry in `tables` carries its `path`, `resolution`, whether it is `destructive`, and its `ops`:
+`pxt schema diff --json` emits the whole plan as one object: `schema_file`, `catalog_dir`, `in_agreement`, `tables`, `extras`, and a `summary` with one count per resolution. Each entry in `tables` has a `path`, a `resolution`, a `destructive` flag, and its `ops`:
 
 ```json
 {
@@ -429,31 +543,19 @@ pxt schema diff app.py pxt://acme:main/prod  # 0 / 2 / 1
   "resolution": "update_destructive",
   "destructive": true,
   "ops": [
-    {
-      "target": "column",
-      "name": "author",
-      "op": "add",
-      "severity": "additive",
-      "destructive": false,
-      "description": "column 'author' will be added",
-      "details": {"type": "String"}
-    },
-    {
-      "target": "column",
-      "name": "body",
-      "op": "drop",
-      "severity": "destructive",
-      "destructive": true,
-      "description": "column 'body' will be dropped",
-      "details": {}
-    }
+    {"target": "column", "name": "author", "op": "add", "severity": "additive", "destructive": false,
+     "description": "column 'author' will be added", "details": {"type": "String"}},
+    {"target": "column", "name": "body", "op": "drop", "severity": "destructive", "destructive": true,
+     "description": "column 'body' will be dropped", "details": {}}
   ]
 }
 ```
 
-An op's `target` is `column`, `index`, or `table`, and its `op` is `add`, `drop`, or `alter`. `name` is what it acts on -- a column, an index, the differing attribute when the target is a table, or the table path for a drop -- and `details` holds that operation's operands, such as the `type` of an added column. `severity` is `additive`, `destructive`, or `unsupported`; `destructive` is the boolean form of the middle case. A table's `resolution` is `up_to_date`, `create`, `update_additive`, `update_destructive`, or `unsupported`, and one with `create` carries no ops, because the create subsumes them.
+An op's `target` is `column`, `index`, or `table`, and its `op` is `add`, `drop`, or `alter`. `name` is what it acts on -- a column, an index, the differing attribute when the target is a table, or the table path for a drop -- and `details` contains that operation's operands, such as the `type` of an added column. `severity` is `additive`, `destructive`, or `unsupported`; `destructive` is the boolean form of the middle case. A table's `resolution` is `up_to_date`, `create`, `update_additive`, `update_destructive`, or `unsupported`, and a `create` has no ops, because the create subsumes them.
 
 These field names and values are the catalog's own, as returned by `TableModel.get_model_diff()`, so a plan read from the CLI and a diff read from Python describe a change the same way.
+
+`pxt schema diff --json-schema` prints the JSON Schema of that output.
 
 `update` and `prune` return the same object with a `status` on every table and operation:
 
@@ -467,7 +569,7 @@ Every path returns the plan, including the ones that refuse before reaching the 
 
 ### Pruning
 
-`update` only ever touches tables the schema declares, so tables it doesn't know about accumulate. `diff` lists them as extras; `prune` drops them. A full reconcile is `update` followed by `prune`.
+`update` only ever touches tables declared by the schema, so tables it doesn't know about accumulate. `diff` lists them as extras; `prune` drops them. A full reconcile is `update` followed by `prune`.
 
 | Flag | Description |
 |---|---|
@@ -479,7 +581,7 @@ pxt schema prune app.py my_app -n     # list what would be dropped
 pxt schema prune app.py my_app -f     # drop it
 ```
 
-Only tables under `TARGET` are considered, so nothing elsewhere in the catalog is affected, and declared tables are never dropped. A view is dropped before its base. Prune never force-drops: a table that something outside the pruned set depends on is left in place and the drop fails, naming what depends on it.
+Only tables under `TARGET` are considered, so nothing elsewhere in the catalog is affected, and declared tables are never dropped. A view is dropped before its base. Prune never force-drops: a table with a dependent outside the pruned set is left in place, and the drop fails with an error reporting that dependent.
 
 <Warning>
 Pruning is irreversible. Run it with `-n` first.
@@ -515,53 +617,165 @@ pxt count my_dir/my_table --json | jq '.count'
 
 Without `--json`, output is column-aligned text.
 
-The `schema` commands additionally report drift in their exit status (`0` in sync, `2` pending, `3` refused, `1` error), so a CI gate needs no output parsing at all.
+The `schema` commands additionally report drift in their exit status (`0` in sync, `2` pending, `3` refused, `1` error), so a CI gate needs no output parsing.
 
 ## Serving
 
-Route API: [HTTP serving](/howto/deployment/serving). Apply schema first. OpenAPI is at `/docs`.
-`TARGET` may be a `pxt://org:db` URI. Then `pxt db update` first: secrets, image, archive.
-`pxt service run` stays on this machine. Hosted `stop` keeps the registration; `prune` forgets it.
-If `diff` reports the database project is behind the working copy, run `pxt db update` before `pxt service update`.
+`pxt service` runs the services in an application file. An application file is any Python source file containing
+table/view models and either `FastAPIRouter` instances (which serve routes over them) or a `fastapi.FastAPI`
+application of your own. It requires the `serve` extra
+(`pip install 'pixeltable[serve]'`), which pulls in `fastapi[standard]` and `uvicorn`.
+
+<Info>
+A service is a full FastAPI application with auto-generated [OpenAPI docs](https://fastapi.tiangolo.com/features/#automatic-docs)
+at `/docs`. For the API that defines the routes, see the [Python serving API](/howto/deployment/serving#mount-on-your-own-fastapi-app).
+</Info>
+
+One file contains both the schema and the services, so the same file drives both commands:
 
 ```bash
-pxt service example --out app.py
-pxt schema update app.py my_dir
-pxt service update app.py my_dir
+pxt service example --out app.py    # a working file to start from
+pxt schema update app.py my_dir     # create the tables declared by the models
+pxt service update app.py my_dir    # serve this file's services against them
 ```
+
+`TARGET` is the catalog the models are bound to, so the same file can run against a development
+directory and a production one.
+
+### Serving your own application
+
+A file may supply its own `fastapi.FastAPI` object instead of leaving Pixeltable to build one. Then the
+file declares one service, named after its module, and `pxt service update` serves that application as it
+is:
+
+```python
+# notes_app.py
+import fastapi
+import pixeltable as pxt
+
+TableModel = pxt.model_base()
+
+class Notes(TableModel, name='notes'):
+    note_id = pxt.Column(type=pxt.Int, primary_key=True)
+    text: pxt.String
+
+app = fastapi.FastAPI()
+
+@app.post('/notes')
+def add_note(note_id: int, text: str) -> dict[str, int]:
+    return {'rows': Notes.insert([{'note_id': note_id, 'text': text}]).num_rows}
+```
+
+```bash
+pxt schema update notes_app.py my_dir     # create the tables for the models in notes_app.py
+pxt service update notes_app.py my_dir    # serve the application, as service 'notes_app'
+```
+
+The models in the file are bound at `TARGET` before the application serves, so a handler reaches
+them by name (`Notes.insert(...)`).
+
+All `FastAPIRouter` instances in the same source file are expected to be included in the `FastAPI` application
+(via `include_router()`), and the application file still produces a single service:
+
+```python
+app.include_router(ingest, prefix='/v1')   # ingest's routes are served under /v1
+```
+
+A router not included in `app` would never be served, and in that situation `pxt service` fails with an error.
+The routes of an included `FastAPIRouter` are diffed by their declarations (i.e., they take the data types of path
+parameters into account); the paths served by the application itself are diffed as path strings.
+
+### Hosted targets
+
+`TARGET` may be a `pxt://org:db` URI, and the services then run in that database rather than on this
+machine. The database needs this project and its tables first, so the order is:
+
+```bash
+pxt db update pxt://acme:main               # create the database and put this project's code in it
+pxt schema update app.py pxt://acme:main    # create the tables declared by the models
+pxt service update app.py pxt://acme:main   # start the services there
+```
+
+`diff`, `update`, `prune`, `stop`, `restart` and `list` all accept a hosted target. `run` does not: it serves from the
+calling process, so it is local by definition. Two verbs differ in meaning against a hosted database, where
+a stopped service keeps its registration: `stop` stops it and leaves it there to be started again, while
+`prune` forgets it.
+
+`pxt service restart` cycles a service's pods onto the database's current image and project, keeping the
+service's registration and endpoint, and accepts the same service addresses as `stop`. Use it after
+`pxt db update` to move a running service onto the new project, and to pick up the current values of its
+referenced secrets. Against a local target it stops the process and starts it again on the same
+port, so callers keep their address.
+
+`pxt service logs` reads a service's log and accepts the same service addresses as `stop`. `pxt db logs` reads
+the log of a hosted database's pod:
+
+```bash
+pxt service logs ingest                          # a bare name, when only one target has a service of that name
+pxt service logs my_dir/ingest                   # the service of that name under my_dir
+pxt service logs pxt://acme:main/my_dir/ingest   # the one in a hosted database
+pxt service logs pxt://acme:main/ingest --since 10m --tail 50
+pxt db logs pxt://acme:main
+```
+
+A hosted log merges the serving process's log records, requests included, with its console output, ordered by
+time. The console output contains the traceback of a service that failed to start. Health probes are left out unless
+`--include-health` is given. The log outlives the pod, so the log of a failed deploy can be read after its pod is
+gone. A line appears in the log a few seconds after it is written. A service running on this machine logs to a
+local file instead, and `pxt service logs` reports the path of that file.
 
 ### `pxt service` verbs
 
 | Command | Description |
 |---|---|
 | `pxt service diff APP TARGET` | Report what `update` would change; exit `2` if anything is pending |
-| `pxt service update APP TARGET` | Start the services `APP` declares, and restart the ones whose declaration changed |
+| `pxt service update APP TARGET` | Start the services declared by `APP`, and restart the ones whose declaration changed |
 | `pxt service run APP TARGET [SERVICE]` | Serve one of them from this process instead, until interrupted |
 | `pxt service prune APP TARGET` | Stop and forget the services at `TARGET` that `APP` does not declare |
 | `pxt service stop NAME...` | Stop the named services |
-| `pxt service list [TARGET]` | What is running, and where |
+| `pxt service list [TARGET]` | What is running locally, and where |
+| `pxt service logs NAME` | What the named service logged; `TARGET/NAME` to disambiguate |
 | `pxt service check APP` | Validate the application file on its own. Takes no `TARGET` and reads no catalog |
 | `pxt service example` | Write a working application file to start from |
 
 Like the `schema` verbs, `diff` reports drift in its exit status: `0` in agreement, `2` changes pending,
 `3` refused, `1` error. So a CI gate needs no output parsing.
 
+`pxt service diff --json-schema` prints the JSON Schema of that output.
+
 ### Flags
 
 | Flag | Verbs | Description |
 |---|---|---|
 | `--json` | all | Emit machine-readable JSON |
+| `--since`, `--tail`, `--include-health` | `logs` | How far back, how many lines, whether to keep health probes |
 | `-f`, `--force` | `update`, `prune` | Skip the `[y/N]` prompt |
-| `-n`, `--dry-run` | `update`, `prune` | Print the intended change; don't apply it |
+| `-n`, `--dry-run` | `update`, `prune` | Print the intended change; do not run `update` or `prune` |
 | `--allow-destructive` | `update` | Permit changes that stop serving a route callers may be using |
 | `--host`, `--port` | `run` | Bind address and port (default `127.0.0.1:8000`) |
-| `--otel` | `diff`, `update`, `run` | Emit OpenTelemetry traces (`update`/`run`) or report tracing that is off (`diff`). Needs `pixeltable[otel]` |
+| `--otel` | `run`, `update`, `diff` | Emit OpenTelemetry traces; see [Tracing](#tracing) |
+
+### Tracing
+
+`--otel` emits OpenTelemetry traces from the served application: Pixeltable's own spans, nested under the
+request spans of the FastAPI app. It needs the instrumentation package (`pip install 'pixeltable[otel]'`),
+and the endpoint and service name come from the `OTEL_*` environment variables or the `[otel]` config
+section, as they do for any Pixeltable process.
+
+```bash
+pxt service run app.py my_dir --otel       # traced, in this process
+pxt service update app.py my_dir --otel    # traced, in the background process update starts
+```
+
+Tracing is configured once per process, so it is a property of the deployment rather than of the file:
+adding or dropping `--otel` restarts the service, and `pxt service diff app.py my_dir --otel` reports that
+restart as a pending change before `update` performs it.
 
 ### Background and foreground
 
 `update` starts **one background process per service**, each on its own port, and records it so `list` and
 `stop` can find it again. A service that crashes disappears from `list` with no cleanup step, because a
-record is only as live as the process it names.
+record is only as live as the process it refers to.
 
 ```bash
 pxt service update app.py my_dir
@@ -570,11 +784,10 @@ pxt service list
 pxt service stop ingest
 ```
 
-`run` serves one service from the calling process instead, until interrupted, which is the mode for a
-container entrypoint or a development loop. One service per process, as `update` deploys them, so the routes
-it serves are the ones deployment serves; name the service as a third argument when the file declares more
-than one. It has no idle outcome and records nothing, which is why it is a verb of its own rather than a mode
-of `update`:
+`run` stays in the foreground until you interrupt it and does not register the service for `list` or `stop`,
+so it is a separate command, not a flag on `update`. Use it as a container entrypoint or a development loop.
+It serves one service per process, the same as `update`; name a specific service as a third argument when the file
+declares more than one:
 
 ```bash
 pxt service run app.py my_dir --port 9000
@@ -585,82 +798,95 @@ pxt service run app.py my_dir --port 9000
 
 ### Restarts
 
-A service binds its models once, when its process starts, so a changed declaration is applied by replacing
-the process. `diff` reports which services that would interrupt, and `update` says so before it does it.
-Adding a route is additive; changing or removing one stops serving a contract a caller may be using, so it
-needs `--allow-destructive`.
+A service binds its models once, when its process starts, so a changed declaration takes effect when `pxt service update` replaces
+the process. `diff` reports which services that replacement would interrupt, and `update` reports them
+before it proceeds. Adding a route is additive; changing or removing one stops serving a contract that
+callers may be using, so it needs `--allow-destructive`.
 
 ## Cloud
 
-`pxt db` and `pxt org` manage cloud-hosted databases and organizations. All cloud commands require `PIXELTABLE_API_KEY` to be configured (see [Configuration](/platform/configuration)).
+`pxt db` and `pxt org` manage cloud-hosted databases and organizations. All cloud commands require `PIXELTABLE_API_KEY`. Create the key in the Cloud dashboard: [Get an API key](/howto/deployment/cloud#get-an-api-key). Then export it. The CLI reads the process environment and does not load `.env` on its own ([Configuration](/platform/configuration)).
 
 All cloud commands accept `--json` for machine-readable output.
 
 ### Cloud configuration reference
 
-`pxt db diff` and `pxt db update` read the `[[pixeltable.database]]` entry whose
-`name` is the target URI. `pxt init` writes the local entry. A hosted
-database is a second entry in the same project file.
+`pxt db diff` and `pxt db update` read the entry of the target database from the project configuration (`pixeltable.toml`, or `pyproject.toml` under `[tool.pixeltable]`), searched for upward from the working directory.
 
-An older file that uses a single `[pixeltable.database]` table is one
-entry. That form still loads.
+#### `[[pixeltable.database]]` -- what a project declares about one database
+
+Defines which project files the database gets, what goes into its image, and its compute settings.
 
 ```toml
 [[pixeltable.database]]
+name = 'pxt://myorg:prod'           # matches the URI passed to pxt db update
 
-[[pixeltable.database]]
-name = "pxt://org:mydb"
-include = ["app.py", "functions.py"]
-exclude = [
-    "__pycache__",
-    "*.pyc",
-    ".git",
-    ".env",
-    "*.egg-info",
-    ".venv",
-]
-system_dependencies = ["ffmpeg"]
-python_version = "3.11"
+# which project files the database gets. Glob patterns relative to the project root; everything git
+# would not ignore is uploaded by default, and the lockfile always is. Patterns use git wildmatch, so
+# a bare `*.py` matches at every depth while a leading slash anchors it: `/*.py` is the root only.
+include = ["app/**", "models/**"]
+exclude = ["__pycache__", "*.pyc", ".git", ".env", "*.egg-info", ".venv"]
+
+# what goes into the image
+system_dependencies = ['ffmpeg']    # conda-forge packages
+python_version = '3.11'
+
+# what the database runs on
 cpu = 2.0
 memory_mb = 4096
 disk_gb = 50
 workers = 2
 
-[pixeltable.database.secrets]
-openai_api_key = "env:OPENAI_API_KEY"
+# fixed when the database is created
+location = 'aws'
+region = 'us-east-1'
 ```
 
-Globs are relative to the project root. Extra keys on the entry are
-rejected. Capacity numbers live here, not as `pxt db update` flags.
+An entry with no `name` configures the local database. A hosted database is configured by the entry whose `name` is its URI.
 
 ### `pxt db`
 
-Manage cloud-hosted Pixeltable databases. A database is a hosted Pixeltable instance with its own compute, storage, and Python runtime.
+Manage cloud-hosted Pixeltable databases. A database is a hosted Pixeltable instance with its own compute, storage, and Python environment.
 
 Database URIs use the form `pxt://org:db`. Valid states: `PROVISIONING`, `STARTING`, `AVAILABLE`, `UPDATING`, `STOPPING`, `STOPPED`, `FAILED`.
 
-The URI argument is optional: with it omitted, these commands use `db_uri` from the Pixeltable config file (see [Configuration](/platform/configuration)), so a project that sets it can run `pxt db status` and friends with no argument.
+The URI argument is optional: when it is omitted, these commands use `db_uri` from the Pixeltable config file (see [Configuration](/platform/configuration)), so a project that sets it can run `pxt db status` and the other `db` commands with no argument.
 
-#### `pxt db create`
+#### `pxt db update`
 
 ```bash
-pxt db create pxt://myorg:mydb
-pxt db create pxt://myorg:mydb --location aws --region us-east-1
+pxt db update pxt://myorg:mydb
+pxt db update pxt://myorg:mydb -n      # print the plan and stop
+pxt db update pxt://myorg:mydb --allow-destructive
 ```
 
-| Argument / flag | Description |
+| Flag | Description |
 |---|---|
-| `db_uri` | `pxt://org:db` |
-| `--location` | Cloud provider (default: `aws`) |
-| `--region` | Region (default: `us-east-1`) |
+| `-n`, `--dry-run` | Print the plan; do not run `update` |
+| `-f`, `--force` | Skip the confirmation |
+| `--allow-destructive` | Permit taking capacity away |
 
-Provisions a new database. Polls until state is `AVAILABLE`.
+`update` creates a hosted database and keeps it current afterwards. Put the database in a `[[pixeltable.database]]` entry, then run `update` against the URI in its `name`:
+
+```toml
+# pixeltable.toml
+[[pixeltable.database]]
+name = 'pxt://myorg:mydb'
+```
+
+```bash
+pxt db update pxt://myorg:mydb
+```
+
+The URI on the command line selects the entry by its `name`: an entry for another database configures that one, and a target with no entry is an error. The first run creates the database, builds the image for its environment and uploads the project files that the pods run; every later run applies whatever has changed since. The [cloud configuration reference](#cloud-configuration-reference) lists everything an entry can declare.
+
+`update` applies a new image if dependencies changed, then uploaded project files if sources changed, then one resize for any changed CPU, memory, disk, or worker counts so the pods restart only once. Secrets are set with [`pxt secret`](#pxt-secret) rather than from the project.
 
 #### `pxt db list`
 
 ```bash
-pxt db list pxt://myorg
-pxt db list pxt://myorg --json
+pxt db list
+pxt db list --json
 ```
 
 #### `pxt db status`
@@ -687,6 +913,15 @@ pxt db stop pxt://myorg:mydb
 
 Stop a running database (releases compute; storage is preserved).
 
+#### `pxt db restart`
+
+```bash
+pxt db restart pxt://myorg:mydb
+```
+
+Cycle the pods onto their current image and project, without rebuilding or uploading anything. Use it
+to pick up a secret set since they started. Polls until `AVAILABLE`; a stopped database is started instead.
+
 #### `pxt db diff`
 
 ```bash
@@ -694,23 +929,16 @@ pxt db diff pxt://myorg:mydb
 pxt db diff pxt://myorg:mydb --json
 ```
 
-Compares the database against the `[[pixeltable.database]]` entry naming it. Exit `0` in agreement, `2` with changes pending. Nothing is built or resized.
+`pxt db diff` compares the hosted database to that config entry (see the [cloud configuration reference](#cloud-configuration-reference)): capacity, the Python image, and the project file archive --
 
-#### `pxt db update`
+| Artifact | Contents | Replaced when |
+|---|---|---|
+| the image | the Python environment, and no project code | the lockfile, `python_version`, `system_dependencies` or the Pixeltable version changes |
+| the project archive | every selected project file | any selected file changes |
 
-```bash
-pxt db update pxt://myorg:mydb
-pxt db update pxt://myorg:mydb -n
-pxt db update pxt://myorg:mydb --allow-destructive
-```
+so an edit to a source file is uploaded in seconds, and only a dependency change costs an image build. Exit status is 0 in agreement and 2 with changes pending; nothing is built, resized or set.
 
-| Flag | Description |
-|---|---|
-| `-n`, `--dry-run` | Print the plan without applying it |
-| `-f`, `--force` | Skip the confirmation |
-| `--allow-destructive` | Permit taking capacity away or deleting a secret |
-
-Applies what `diff` reports: secrets first, then the image if the environment moved and the project archive if the files moved, then one resize. A secret in the file is an environment variable name (`openai_api_key = 'env:OPENAI_API_KEY'`), never a value.
+`pxt db diff --json-schema` prints the JSON Schema of that output.
 
 #### `pxt db build-image`
 
@@ -718,7 +946,7 @@ Applies what `diff` reports: secrets first, then the image if the environment mo
 pxt db build-image pxt://myorg:mydb
 ```
 
-Stores the project's archive and builds the image from its environment, without comparing first. `pxt db update` ships whichever of the two has moved. This one does both unconditionally.
+Builds the image from the project environment without comparing anything first, which is how you force a rebuild after a failed one; `pxt db update` rebuilds only when that environment changed. The project files are uploaded with it, unless the database already has that exact archive. Polls until the build completes or fails; the pods restart on the new image and the new sources.
 
 #### `pxt db delete`
 
@@ -727,6 +955,10 @@ pxt db delete pxt://myorg:mydb --json
 ```
 
 Deletes the database, its storage, and all services. Irreversible.
+
+A database recreated under the same name is a different database: its workers are keyed by a new
+internal id, so credentials for the old database no longer work. Treat a
+delete followed by an `update` as a new deployment rather than a reset.
 
 ### `pxt org`
 
@@ -742,9 +974,41 @@ List all organizations accessible to the current API key.
 #### `pxt org status`
 
 ```bash
-pxt org status pxt://myorg
+pxt org status                   # only when your key reaches exactly one org
+pxt org status pxt://myorg       # name it when your key reaches several
 ```
 
 Show the organization's name, ID, and default database.
 
-Cookbook walkthrough: [Working with the CLI](/howto/cookbooks/core/working-with-cli).
+### `pxt secret`
+
+```bash
+pxt secret list                    # the org your key reaches
+pxt secret list   pxt://myorg
+pxt secret list   pxt://myorg:mydb
+pxt secret set    pxt://myorg OPENAI_API_KEY=sk-...
+pxt secret delete pxt://myorg:mydb OLD_KEY
+```
+
+An org secret applies to every database in the org. A database secret applies to that database and wins on a key collision. `list` prints names, never values.
+
+A running database uses the values from its startup. `pxt db restart`, or `pxt service restart` for one service, picks up a change; a database or service started afterwards reads the current value at startup.
+
+<Warning>
+A `[[pixeltable.database]]` entry no longer accepts `secrets`. A project config that still has
+`secrets.openai_api_key = 'env:OPENAI_API_KEY'` fails to load:
+
+```
+RequestError: Invalid `DatabaseConfig` in config file: pixeltable.toml
+secrets  Extra inputs are not permitted
+```
+
+Delete the `secrets.*` lines and set each value with `pxt secret set` instead. The values were never
+stored in the file, so nothing is lost.
+</Warning>
+
+## What's next
+
+- [Working with the Pixeltable CLI](/howto/cookbooks/core/working-with-cli): hands-on cookbook for inspect, query, debug, and serve workflows
+- [HTTP Serving Guide](/howto/deployment/serving): TOML config reference, Python `FastAPIRouter` API, decorator routes
+- [Configuration](/platform/configuration): API keys, storage paths, and environment settings

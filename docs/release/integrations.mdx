@@ -162,7 +162,7 @@ Pixeltable into your application; MCP and OpenTelemetry extend this process.
 | Integration | What it does | Install |
 | :--- | :--- | :--- |
 | [HTTP serving](/howto/deployment/serving) | Expose tables and queries as HTTP endpoints via `FastAPIRouter`, configured in Python or a TOML service file | `pixeltable[serve]` |
-| [MCP](/libraries/mcp) | Turn remote MCP tools into udfs with `pxt.mcp_udfs()`, and serve Pixeltable over MCP | `mcp` |
+| [MCP](/use-cases/agentic-workflows) | Turn remote MCP tools into udfs with `pxt.mcp_udfs()`, and serve Pixeltable over MCP | `mcp` |
 | [Observability](/platform/observability) | Export internal spans to any OpenTelemetry backend | `pixeltable[otel]` |
 
 ```python
@@ -218,7 +218,7 @@ generated media back to the store you configure.
 * [Model catalog](/integrations/frameworks): every built-in model integration, grouped by task
 * [Embeddings](/integrations/embedding-model): embedding indexes, `.using()`, and custom models
 * [Open models](/integrations/open-models): SAM 3, CLIP, Whisper, DETR, ViT, and other named models with dedicated udfs
-* [YOLOX](/libraries/yolox): lightweight object detection built on PyTorch
+* [YOLOX](/howto/use-cases/object-detection-in-videos): lightweight object detection built on PyTorch
 
 ### Data
 
@@ -230,5 +230,5 @@ generated media back to the store you configure.
 ### Serving and ops
 
 * [HTTP serving](/howto/deployment/serving): FastAPI endpoints for tables, queries, and background jobs
-* [MCP](/libraries/mcp): consume MCP tools and serve Pixeltable over MCP
+* [MCP](/use-cases/agentic-workflows): consume MCP tools and serve Pixeltable over MCP
 * [Observability](/platform/observability): OpenTelemetry spans for inserts and computed columns

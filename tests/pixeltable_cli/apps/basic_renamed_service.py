@@ -1,12 +1,6 @@
-"""basic.py with the service under a different name: the deployment of the old name becomes an extra.
-
-A corpus file the schema and service CLI tests share: `pxt schema update` creates what the models declare,
-`pxt service update` serves what the router declares over the same tables.
-"""
+"""basic.py with the service under a different name: the service under the old name becomes an extra."""
 
 # ruff: noqa: F821  # a model body refers to its own columns by bare name
-
-from __future__ import annotations
 
 import pixeltable as pxt
 import pixeltable.functions as pxtf

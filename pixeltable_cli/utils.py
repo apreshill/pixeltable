@@ -47,10 +47,13 @@ def get_port() -> int:
         raise RuntimeError(f'PXT_PORT must be an integer port; got {raw!r}') from None
 
 
-def pidfile_path() -> str:
-    """Per-port pidfile path. The port parameterization isolates daemons running on
-    different ports so they don't read or stomp each other's PID."""
-    return os.path.join(_resolve_pixeltable_home(), f'pxt-daemon-{get_port()}.pid')
+def pidfile_path(port: int | None = None) -> str:
+    """Pidfile path for a daemon on port, or on the one PXT_PORT names.
+
+    The port parameterization isolates daemons running on different ports so they don't read or stomp each
+    other's PID.
+    """
+    return os.path.join(_resolve_pixeltable_home(), f'pxt-daemon-{port if port is not None else get_port()}.pid')
 
 
 class PxtUriParts(NamedTuple):
@@ -137,7 +140,7 @@ def resolve_dot_segments(path: str) -> str:
 
 
 PROJECT_CONFIG_FILE = 'pixeltable.toml'
-_PYPROJECT = 'pyproject.toml'
+PYPROJECT_FILE = 'pyproject.toml'
 
 
 def find_project_root(start: Path) -> Path | None:
@@ -149,7 +152,7 @@ def find_project_root(start: Path) -> Path | None:
     for dir in (start, *start.parents):
         if (dir / PROJECT_CONFIG_FILE).is_file():
             return dir
-        pyproject = dir / _PYPROJECT
+        pyproject = dir / PYPROJECT_FILE
         if pyproject.is_file():
             try:
                 with open(pyproject, 'rb') as fp:
@@ -219,29 +222,28 @@ def project_root() -> str | None:
     return None if found is None else str(found)
 
 
-def env_fingerprint(environ: dict[str, str] | None = None) -> dict[str, str]:
-    """Returns dict mapping every set environment variable to a hash of its value.
+def value_fingerprint(value: str) -> str:
+    """A hash of one config value, short enough to print and to compare by eye."""
+    return hashlib.sha256(value.encode('utf-8')).hexdigest()[:12]
 
-    The hash is the same as value_fingerprint() in config.py.
-    """
+
+def env_fingerprint(environ: dict[str, str] | None = None) -> dict[str, str]:
+    """Returns dict mapping every set environment variable to a hash of its value."""
     env = os.environ if environ is None else environ
-    return {name: hashlib.sha256(env[name].encode('utf-8')).hexdigest()[:12] for name in sorted(env) if env[name] != ''}
+    return {name: value_fingerprint(env[name]) for name in sorted(env) if env[name] != ''}
 
 
 def identity() -> dict[str, Any]:
-    pxt_version = _pxt_version()
-    pxt_install_dir = _pxt_install_dir()
-    # Surfacing this here turns a broken pixeltable install into one clear error instead
-    # of a daemon that 500s on every /health call and respawns in a tight loop.
-    if pxt_version is None or pxt_install_dir is None:
-        raise RuntimeError(
-            "pixeltable package metadata not found (importlib.metadata can't locate the "
-            "'pixeltable' distribution). Reinstall with: pip install --force-reinstall pixeltable"
-        )
+    """The fingerprint the client compares against a running daemon's.
+
+    pxt_version and pxt_install_dir are None where the served project is pixeltable itself: a hosted
+    image installs a project's dependencies, not the project. `pxt` ships in that distribution, so a
+    local client always resolves both.
+    """
     home = _resolve_pixeltable_home()
     return {
-        'pxt_version': pxt_version,
-        'pxt_install_dir': pxt_install_dir,
+        'pxt_version': _pxt_version(),
+        'pxt_install_dir': _pxt_install_dir(),
         'python_executable': sys.executable,
         'pixeltable_home': home,
         'pixeltable_pgdata': _resolve_pixeltable_pgdata(home),

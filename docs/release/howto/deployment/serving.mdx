@@ -1,7 +1,7 @@
 ---
 title: 'HTTP serving'
 sidebarTitle: 'HTTP serving'
-description: 'Insert, compute, update, delete, query. Uploads, background jobs, SqlExport.'
+description: 'HTTP routes for insert, compute, update, delete, and query, plus uploads, background jobs, and SqlExport.'
 ---
 
 Install FastAPI and uvicorn first:
@@ -10,9 +10,13 @@ Install FastAPI and uvicorn first:
 pip install 'pixeltable[serve]'
 ```
 
-Which process runs the router: [Self-hosting](/howto/deployment/overview). Required columns and apply order: [How it works](/overview/how-it-works). This page is the rest of the route API.
+How the process starts is on [Self-hosting](/howto/deployment/overview). This page covers the route API once you have chosen which process serves it. After a service is running, FastAPI's OpenAPI UI is at `http://<host>:<port>/docs`, and the schema behind it is at `http://<host>:<port>/openapi.json`. Generate TypeScript types for a frontend from that schema:
 
-`pxt service example --out app.py` writes a larger starter. `pxt service run app.py my_dir` serves from this process until interrupted. OpenAPI is at `/docs`. `pxt service list` prints the assigned URL.
+```bash
+npx openapi-typescript http://localhost:8000/openapi.json -o src/pixeltable.d.ts
+```
+
+Each column named in a route's `outputs` becomes a typed field, computed columns included.
 
 ## Mount on your own FastAPI app
 
@@ -22,7 +26,7 @@ import uvicorn
 import pixeltable as pxt
 from pixeltable.serving import FastAPIRouter
 
-t = pxt.get_table('my_dir.my_table')
+t = pxt.get_table('my_app.docs')
 
 app = fastapi.FastAPI()
 router = FastAPIRouter()
@@ -43,13 +47,11 @@ app.include_router(router)
 uvicorn.run(app, host='0.0.0.0', port=8000)
 ```
 
-`@pxt.query` evaluates the function body at decoration time. Apply the application file with `pxt schema update` before defining queries that reference those tables. Keep `@router.post()` for multi-table operations, conditional logic, or a custom response shape. `FastAPIRouter` extends FastAPI's `APIRouter`.
-
-`pxt service` serves `FastAPIRouter` instances. A `fastapi.FastAPI` object in the application file is rejected; run that app with uvicorn after `pxt schema update`.
+`@pxt.query` evaluates the function body at decoration time. Define `@pxt.query` functions only after `pxt schema update`, because the decorator runs the function body immediately. Use a plain FastAPI `@app.post()` when one `FastAPIRouter` helper cannot express the request.
 
 ## Compute without inserting
 
-[`Table.compute()`](/sdk/latest/table#method-compute) materializes computed columns and does not write a row.
+[`Table.compute()`](/sdk/latest/table#method-compute) runs computed columns and returns the values without writing a row.
 
 ```python
 rows = t.compute([{'prompt': 'hello'}])
@@ -69,7 +71,7 @@ router.add_compute_route(
 
 ## Decorator-style routes
 
-`add_insert_route()` builds the response model from the column schema. For a different body, decorate. The function receives `outputs` as keyword arguments and returns a `pydantic.BaseModel`.
+`add_insert_route()` builds the response model from the column schema. To return a custom JSON body, use `@router.insert_route` instead of `add_insert_route()`. The function receives `outputs` as keyword arguments and returns a `pydantic.BaseModel`.
 
 ```python
 import pydantic
@@ -155,7 +157,7 @@ A Pixeltable insert with `method='update'` is allowed: append-only here, current
 [`SqlExport`](https://docs.pixeltable.com/sdk/latest/pixeltable/serving/SqlExport)
 
 <Warning>
-A connection string with an embedded password is plaintext in the application file. Pull credentials from the environment, a `.pgpass`-style file, or a `pxt.Secret` config var.
+A connection string with an embedded password is plaintext in the application file. Pull credentials from the environment, a `.pgpass`-style file, or `pxt secret set`.
 </Warning>
 
 ## Full example
@@ -266,13 +268,4 @@ curl http://127.0.0.1:<port>/_pxt/jobs/abc123
 
 `background` cannot combine with `return_fileresponse`.
 
-## CLI
-
 Flags: [CLI](/platform/cli).
-
-```bash
-pxt service diff   app.py my_dir
-pxt service update app.py my_dir
-pxt service run    app.py my_dir
-pxt service list
-```

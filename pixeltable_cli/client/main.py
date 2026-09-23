@@ -1,7 +1,7 @@
 import importlib
 import importlib.metadata
 import sys
-from collections.abc import Callable
+from typing import Callable
 
 # Single source of truth for both the top-level help message and shell-mode dispatch.
 # Each key names a module under pixeltable_cli.client.commands.* exposing run(argv: list[str]) -> None.
@@ -26,16 +26,19 @@ COMMANDS: dict[str, str] = {
     'drop-dir': "remove a directory (use 'drop' for tables/views)",
     'rename': 'rename a table/view/dir in place',
     'mv': 'move a table/view/dir to a different directory',
+    'recompute': 'recompute one or more computed columns of a table',
     'revert': 'undo the last op(s) on a table',
-    'schema': 'reconcile a directory with a class-based schema file (diff/update/prune/example)',
+    'schema': 'reconcile a directory with a class-based schema file (diff/update/prune/check/example)',
     'shell': 'interactive REPL (avoids per-command Python startup)',
     'daemon': 'control the daemon (start/stop/restart/status)',
     'localproxy': 'manage local proxy daemons (create/start/stop/delete)',
     'dashboard': 'print and open the dashboard URL',
-    'db': 'manage hosted databases (create/list/status/start/stop/update/update-runtime/delete)',
-    'service': 'run the services an application file declares (diff/update/prune/stop/list/example)',
+    'db': 'manage hosted databases (diff/update/list/status/logs/start/stop/restart/build-image/delete)',
+    'service': (
+        'run the services defined in an application file (diff/update/run/prune/stop/restart/list/logs/check/example)'
+    ),
     'org': 'manage organizations (list/status)',
-    'secret': 'manage runtime secrets for an org or database (list/set/delete)',
+    'secret': "manage an org's or a database's secrets (list/set/delete)",
 }
 
 
